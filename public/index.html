@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudGram Store - 个人文件存储</title>
+
+    <!-- Ant Design CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/antd@5.12.8/dist/reset.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/antd@5.12.8/dist/antd.min.css" rel="stylesheet">
+
+    <!-- 自定义样式 -->
+    <link href="/css/style.css" rel="stylesheet">
+
+    <!-- Ant Design Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/@ant-design/icons@5.2.6/dist/antd-icon-umd.min.js"></script>
+</head>
+<body>
+    <!-- 登录页面 -->
+    <div id="loginPage" class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <h1>CloudGram Store</h1>
+                <p>基于 Cloudflare + Telegram 的个人文件存储</p>
+            </div>
+            <form id="loginForm" class="login-form">
+                <div class="form-item">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" name="username" required placeholder="请输入用户名">
+                </div>
+                <div class="form-item">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" name="password" required placeholder="请输入密码">
+                </div>
+                <button type="submit" class="login-btn">登录</button>
+                <div id="loginError" class="error-message"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 主页面 -->
+    <div id="mainPage" class="main-container" style="display: none;">
+        <!-- 头部导航 -->
+        <header class="header">
+            <div class="header-left">
+                <h1 class="header-title">CloudGram Store</h1>
+            </div>
+            <div class="header-right">
+                <span id="currentUser" class="user-info"></span>
+                <button id="logoutBtn" class="logout-btn">退出登录</button>
+            </div>
+        </header>
+
+        <!-- 面包屑导航 -->
+        <div class="breadcrumb-container">
+            <nav id="breadcrumb" class="breadcrumb"></nav>
+        </div>
+
+        <!-- 工具栏 -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <button id="uploadBtn" class="btn btn-primary">
+                    <span class="btn-icon">📁</span>
+                    上传文件
+                </button>
+                <button id="createFolderBtn" class="btn btn-secondary">
+                    <span class="btn-icon">📂</span>
+                    新建文件夹
+                </button>
+            </div>
+            <div class="toolbar-right">
+                <button id="refreshBtn" class="btn btn-outline">
+                    <span class="btn-icon">🔄</span>
+                    刷新
+                </button>
+            </div>
+        </div>
+
+        <!-- 文件列表 -->
+        <div class="content-area">
+            <div id="fileList" class="file-list">
+                <div class="loading" id="loading">加载中...</div>
+                <div class="empty-state" id="emptyState" style="display: none;">
+                    <div class="empty-icon">📁</div>
+                    <p>此文件夹为空</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 上传文件输入框（隐藏） -->
+    <input type="file" id="fileInput" multiple style="display: none;">
+
+    <!-- 模态框容器 -->
+    <div id="modalContainer"></div>
+
+    <!-- 上传进度模态框 -->
+    <div id="uploadModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>文件上传</h3>
+            </div>
+            <div class="modal-body">
+                <div id="uploadProgress" class="upload-progress">
+                    <div class="progress-item">
+                        <div class="progress-info">
+                            <span id="uploadFileName">文件名</span>
+                            <span id="uploadPercent">0%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="progressBarFill" class="progress-bar-fill"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新建文件夹模态框 -->
+    <div id="createFolderModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>新建文件夹</h3>
+                <button class="modal-close" onclick="closeModal('createFolderModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-item">
+                    <label for="folderName">文件夹名称</label>
+                    <input type="text" id="folderName" placeholder="请输入文件夹名称" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('createFolderModal')">取消</button>
+                <button id="confirmCreateFolder" class="btn btn-primary">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 重命名模态框 -->
+    <div id="renameModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="renameTitle">重命名</h3>
+                <button class="modal-close" onclick="closeModal('renameModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-item">
+                    <label for="newName">新名称</label>
+                    <input type="text" id="newName" placeholder="请输入新名称" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('renameModal')">取消</button>
+                <button id="confirmRename" class="btn btn-primary">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除确认模态框 -->
+    <div id="deleteModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>确认删除</h3>
+                <button class="modal-close" onclick="closeModal('deleteModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="deleteMessage">确定要删除吗？此操作不可撤销。</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('deleteModal')">取消</button>
+                <button id="confirmDelete" class="btn btn-danger">删除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知容器 -->
+    <div id="notification" class="notification"></div>
+
+    <!-- JavaScript 模块 -->
+    <script type="module" src="/js/main.js"></script>
+</body>
+</html>
