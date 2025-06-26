@@ -18,22 +18,6 @@
 			"database_id": "your-database-id"
 		}
 	],
-	"durable_objects": {
-		"bindings": [
-			{
-				"class_name": "MyDurableObject",
-				"name": "MY_DURABLE_OBJECT"
-			}
-		]
-	},
-	"migrations": [
-		{
-			"new_sqlite_classes": [
-				"MyDurableObject"
-			],
-			"tag": "v1"
-		}
-	],
 	// 环境变量配置
 	"vars": {
 		// 这些值在部署时需要设置为实际值
