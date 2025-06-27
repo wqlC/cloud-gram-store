@@ -32,6 +32,21 @@ export class DatabaseService {
   }
 
   /**
+   * 根据ID获取文件夹信息
+   * @param {number} id - 文件夹ID
+   * @returns {Object|null} 文件夹信息
+   */
+  async getFolderById(id) {
+    try {
+      const result = await this.db.prepare('SELECT * FROM folders WHERE id = ?').bind(id).first();
+      return result || null;
+    } catch (error) {
+      console.error('Error getting folder by id:', error);
+      throw new Error('Failed to get folder');
+    }
+  }
+
+  /**
    * 创建文件夹
    * @param {string} name - 文件夹名称
    * @param {number|null} parentId - 父目录ID
@@ -252,14 +267,14 @@ export class DatabaseService {
    * 创建文件分片记录
    * @param {number} fileId - 文件ID
    * @param {number} chunkIndex - 分片索引
-   * @param {string} telegramMsgId - Telegram消息ID
+   * @param {string} telegramFileId - Telegram文件ID
    * @param {number} size - 分片大小
    * @returns {Object} 创建的分片信息
    */
-  async createFileChunk(fileId, chunkIndex, telegramMsgId, size) {
+  async createFileChunk(fileId, chunkIndex, telegramFileId, size) {
     try {
-      const insertQuery = 'INSERT INTO file_chunks (file_id, chunk_index, telegram_msg_id, size) VALUES (?, ?, ?, ?) RETURNING *';
-      const result = await this.db.prepare(insertQuery).bind(fileId, chunkIndex, telegramMsgId, size).first();
+      const insertQuery = 'INSERT INTO file_chunks (file_id, chunk_index, telegram_file_id, size) VALUES (?, ?, ?, ?) RETURNING *';
+      const result = await this.db.prepare(insertQuery).bind(fileId, chunkIndex, telegramFileId, size).first();
 
       return result;
     } catch (error) {

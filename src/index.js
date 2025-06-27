@@ -75,6 +75,19 @@ export default {
         return jsonResponse(folder);
       });
 
+      router.get('/api/folders/:id', async (request, params) => {
+        const token = auth.extractToken(request);
+        if (!auth.verifyToken(token)) {
+          return errorResponse('Unauthorized', 401);
+        }
+
+        const folder = await db.getFolderById(params.id);
+        if (!folder) {
+          return errorResponse('Folder not found', 404);
+        }
+        return jsonResponse(folder);
+      });
+
       router.patch('/api/folders/:id', async (request, params) => {
         const token = auth.extractToken(request);
         if (!auth.verifyToken(token)) {

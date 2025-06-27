@@ -324,6 +324,13 @@ export class ApiClient {
         return this.delete(`/api/files/${fileId}`);
     }
 
+    /**
+     * 获取单个文件夹信息
+     */
+    async getFolderInfo(folderId) {
+        return this.get(`/api/folders/${folderId}`);
+    }
+
     // ========== 工具方法 ==========
 
     /**

@@ -383,6 +383,7 @@ class CloudGramApp {
      * 更新面包屑导航
      */
     async updateBreadcrumb(folderId) {
+			console.log('更新面包屑导航 floderId=' + folderId);
         if (folderId === null) {
             this.breadcrumbPath = [{ id: null, name: '根目录' }];
         } else {

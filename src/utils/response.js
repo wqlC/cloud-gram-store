@@ -36,17 +36,3 @@ export function errorResponse(message, status = 400) {
     message
   }, status);
 }
-
-/**
- * 创建成功响应
- * @param {any} data - 响应数据
- * @param {string} message - 成功消息
- * @returns {Response} Response 对象
- */
-export function successResponse(data = null, message = 'Success') {
-  return jsonResponse({
-    success: true,
-    message,
-    data
-  });
-}

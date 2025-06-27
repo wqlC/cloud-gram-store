@@ -27,7 +27,7 @@ CREATE TABLE file_chunks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     file_id INTEGER NOT NULL,
     chunk_index INTEGER NOT NULL,
-    telegram_msg_id TEXT NOT NULL,
+    telegram_file_id TEXT NOT NULL,
     size INTEGER NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(file_id) REFERENCES files(id) ON DELETE CASCADE,
@@ -38,7 +38,7 @@ CREATE TABLE file_chunks (
 CREATE INDEX idx_folders_parent_id ON folders(parent_id);
 CREATE INDEX idx_files_folder_id ON files(folder_id);
 CREATE INDEX idx_file_chunks_file_id ON file_chunks(file_id);
-CREATE INDEX idx_file_chunks_telegram_msg_id ON file_chunks(telegram_msg_id);
+CREATE INDEX idx_file_chunks_telegram_file_id ON file_chunks(telegram_file_id);
 
 -- 插入根目录
 INSERT INTO folders (id, name, parent_id) VALUES (1, 'Root', NULL);

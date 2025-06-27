@@ -141,6 +141,7 @@ export class FileManager {
      * 获取文件夹路径
      */
     async getFolderPath(folderId) {
+			console.log('获取文件夹路径 folderId=' + folderId);
         try {
             // 由于后端没有直接提供路径API，这里使用递归方式构建路径
             // 实际项目中可以在后端实现一个专门的路径API
@@ -169,9 +170,8 @@ export class FileManager {
      */
     async getFolderInfo(folderId) {
         try {
-            // 这里需要后端实现获取单个文件夹信息的API
-            // 暂时返回 null，实际使用时需要实现
-            return null;
+            // 调用 API 客户端获取单个文件夹信息
+            return await this.apiClient.getFolderInfo(folderId);
         } catch (error) {
             console.error('获取文件夹信息失败:', error);
             return null;
@@ -274,50 +274,5 @@ export class FileManager {
             successCount: results.filter(r => r.success).length,
             errorCount: errors.length
         };
-    }
-
-    /**
-     * 搜索文件和文件夹
-     */
-    async searchFiles(query, folderId = null) {
-        try {
-            // 获取当前目录内容
-            const contents = await this.getDirectoryContents(folderId);
-
-            // 简单的客户端搜索实现
-            const searchResults = {
-                folders: contents.folders.filter(folder =>
-                    folder.name.toLowerCase().includes(query.toLowerCase())
-                ),
-                files: contents.files.filter(file =>
-                    file.name.toLowerCase().includes(query.toLowerCase())
-                )
-            };
-
-            return searchResults;
-        } catch (error) {
-            console.error('搜索失败:', error);
-            throw new Error('搜索失败：' + error.message);
-        }
-    }
-
-    /**
-     * 获取存储统计信息
-     */
-    async getStorageStats() {
-        try {
-            // 这里需要后端实现统计API
-            // 暂时返回模拟数据
-            return {
-                totalFiles: 0,
-                totalFolders: 0,
-                totalSize: 0,
-                usedSpace: 0,
-                availableSpace: Infinity
-            };
-        } catch (error) {
-            console.error('获取存储统计失败:', error);
-            return null;
-        }
     }
 }

@@ -16,7 +16,7 @@ export class TelegramService {
    * 上传文件到 Telegram
    * @param {Uint8Array} fileData - 文件数据
    * @param {string} fileName - 文件名
-   * @returns {Array} 上传的消息ID列表
+   * @returns {Array} 上传的telegramFileId列表
    */
   async uploadFile(fileData, fileName) {
     try {
@@ -29,10 +29,10 @@ export class TelegramService {
           ? `${fileName}.part${i.toString().padStart(3, '0')}`
           : fileName;
 
-        const messageId = await this.uploadChunk(chunk, chunkFileName);
+        const telegramFileId = await this.uploadChunk(chunk, chunkFileName);
         messageIds.push({
           index: i,
-          messageId,
+          telegramFileId,
           size: chunk.length
         });
       }
@@ -46,7 +46,7 @@ export class TelegramService {
 
   /**
    * 从 Telegram 下载文件
-   * @param {Array} chunks - 文件分片信息数组 [{ messageId, index, size }]
+   * @param {Array} chunks - 文件分片信息数组 [{ telegram_file_id, chunk_index, size }]
    * @returns {Uint8Array} 合并后的文件数据
    */
   async downloadFile(chunks) {
@@ -56,7 +56,7 @@ export class TelegramService {
       const chunkDataArray = [];
 
       for (const chunk of sortedChunks) {
-        const chunkData = await this.downloadChunk(chunk.telegram_msg_id);
+        const chunkData = await this.downloadChunk(chunk.telegram_file_id);
         chunkDataArray.push(chunkData);
       }
 
@@ -75,7 +75,7 @@ export class TelegramService {
   async deleteFile(chunks) {
     try {
       for (const chunk of chunks) {
-        await this.deleteMessage(chunk.telegram_msg_id);
+        await this.deleteTelegramFileById(chunk.telegram_file_id);
       }
     } catch (error) {
       console.error('Error deleting file from Telegram:', error);
@@ -127,7 +127,7 @@ export class TelegramService {
    * 上传单个分片到 Telegram
    * @param {Uint8Array} chunkData - 分片数据
    * @param {string} fileName - 文件名
-   * @returns {string} 消息ID
+   * @returns {string} telegramFile的ID
    */
   async uploadChunk(chunkData, fileName) {
     try {
@@ -146,7 +146,7 @@ export class TelegramService {
         throw new Error(`Telegram API error: ${result.description}`);
       }
 
-      return result.result.message_id.toString();
+      return result.result.document.file_id;
     } catch (error) {
       console.error('Error uploading chunk to Telegram:', error);
       throw error;
@@ -233,27 +233,28 @@ export class TelegramService {
   }
 
   /**
-   * 删除 Telegram 消息
-   * @param {string} messageId - 消息ID
+   * 删除 Telegram 文件
+   * @param {string} telegram_file_id - 文件id
    */
-  async deleteMessage(messageId) {
+	// todo telegram 是否支持直接删除文件
+  async deleteTelegramFileById(telegram_file_id) {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/deleteMessage`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          chat_id: this.chatId,
-          message_id: parseInt(messageId)
-        })
-      });
-
-      const result = await response.json();
-
-      if (!result.ok) {
-        console.warn(`Failed to delete message ${messageId}: ${result.description}`);
-      }
+      // const response = await fetch(`${this.apiBaseUrl}/deleteMessage`, {
+      //   method: 'POST',
+      //   headers: {
+      //     'Content-Type': 'application/json'
+      //   },
+      //   body: JSON.stringify({
+      //     chat_id: this.chatId,
+      //     message_id: parseInt(telegram_file_id)
+      //   })
+      // });
+			//
+      // const result = await response.json();
+			//
+      // if (!result.ok) {
+      //   console.warn(`Failed to delete message ${telegram_file_id}: ${result.description}`);
+      // }
     } catch (error) {
       console.warn('Error deleting message from Telegram:', error);
     }

@@ -42,7 +42,7 @@ export class FileService {
         const chunkRecord = await this.db.createFileChunk(
           fileRecord.id,
           chunk.index,
-          chunk.messageId,
+          chunk.telegramFileId,
           chunk.size
         );
         chunkRecords.push(chunkRecord);
