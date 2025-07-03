@@ -16,8 +16,16 @@
     <!-- <script src="https://cdn.jsdelivr.net/npm/@ant-design/icons@5.2.6/dist/antd-icon-umd.min.js"></script> -->
 </head>
 <body>
+    <!-- 页面加载指示器 -->
+    <div id="pageLoader" class="page-loader">
+        <div class="loader-content">
+            <div class="loader-spinner"></div>
+            <p>正在加载...</p>
+        </div>
+    </div>
+
     <!-- 登录页面 -->
-    <div id="loginPage" class="login-container">
+    <div id="loginPage" class="login-container" style="display: none;">
         <div class="login-box">
             <div class="login-header">
                 <h1>CloudGramStore</h1>
