@@ -361,23 +361,43 @@ export class FileService {
    * @returns {Object} 分片上传结果
    */
   async uploadFileChunk(chunkFile, uploadId, chunkIndex, totalChunks, originalFileName, originalFileSize, folderId) {
-    console.log(`[INFO] 开始上传分片: ${originalFileName}, 分片 ${chunkIndex + 1}/${totalChunks}, 大小: ${chunkFile.size} 字节`);
-    try {
-      // 获取分片数据
-      const arrayBuffer = await chunkFile.arrayBuffer();
-      const chunkData = new Uint8Array(arrayBuffer);
+    const overallStartTime = Date.now();
+    console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 开始上传分片: ${originalFileName}, 大小: ${chunkFile.size} 字节`);
 
-      // 生成分片文件名
+    try {
+      // 步骤1: 获取分片数据
+      const dataProcessStartTime = Date.now();
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 步骤1: 开始处理分片数据...`);
+
+      const arrayBuffer = await chunkFile.arrayBuffer();
+      const arrayBufferTime = Date.now() - dataProcessStartTime;
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 步骤1a: arrayBuffer() 转换完成，耗时: ${arrayBufferTime}ms`);
+
+      const chunkData = new Uint8Array(arrayBuffer);
+      const dataProcessTime = Date.now() - dataProcessStartTime;
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 步骤1b: Uint8Array 创建完成，总耗时: ${dataProcessTime}ms`);
+
+      // 步骤2: 生成分片文件名
+      const nameGenStartTime = Date.now();
       const chunkFileName = totalChunks > 1
         ? `${originalFileName}.part${chunkIndex.toString().padStart(3, '0')}`
         : originalFileName;
+      const nameGenTime = Date.now() - nameGenStartTime;
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 步骤2: 文件名生成完成，耗时: ${nameGenTime}ms, 文件名: ${chunkFileName}`);
 
-      // 直接上传分片到 Telegram（无需再分片）
-      console.log(`[INFO] 上传分片 ${chunkIndex + 1}/${totalChunks} 到 Telegram: ${chunkFileName}`);
+      // 步骤3: 上传到 Telegram
+      const telegramUploadStartTime = Date.now();
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 步骤3: 开始上传到 Telegram...`);
+
       const telegramFileId = await this.telegram.uploadChunk(chunkData, chunkFileName);
-      console.log(`[INFO] 分片 ${chunkIndex + 1}/${totalChunks} 上传到 Telegram 完成，文件ID: ${telegramFileId.substring(0, 10)}...`);
 
-      // 创建临时分片记录（用于后续合并）
+      const telegramUploadTime = Date.now() - telegramUploadStartTime;
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 步骤3: Telegram 上传完成，耗时: ${telegramUploadTime}ms, 文件ID: ${telegramFileId.substring(0, 10)}...`);
+
+      // 步骤4: 创建临时分片记录
+      const dbRecordStartTime = Date.now();
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 步骤4: 开始创建数据库记录...`);
+
       const chunkRecord = await this.db.createTempChunk(
         uploadId,
         chunkIndex,
@@ -388,7 +408,19 @@ export class FileService {
         folderId
       );
 
-      console.log(`[INFO] 分片 ${chunkIndex + 1}/${totalChunks} 上传完成`);
+      const dbRecordTime = Date.now() - dbRecordStartTime;
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 步骤4: 数据库记录创建完成，耗时: ${dbRecordTime}ms`);
+
+      // 总计时间和性能分析
+      const overallTime = Date.now() - overallStartTime;
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] === 性能统计 ===`);
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 数据处理: ${dataProcessTime}ms (${(dataProcessTime/overallTime*100).toFixed(1)}%)`);
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 文件名生成: ${nameGenTime}ms (${(nameGenTime/overallTime*100).toFixed(1)}%)`);
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] Telegram上传: ${telegramUploadTime}ms (${(telegramUploadTime/overallTime*100).toFixed(1)}%)`);
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 数据库操作: ${dbRecordTime}ms (${(dbRecordTime/overallTime*100).toFixed(1)}%)`);
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 总耗时: ${overallTime}ms`);
+      console.log(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 传输速率: ${(chunkFile.size / 1024 / 1024 / (overallTime/1000)).toFixed(2)} MB/s`);
+
       return {
         uploadId,
         chunkIndex,
@@ -397,13 +429,15 @@ export class FileService {
         chunkId: chunkRecord.id
       };
     } catch (error) {
-      console.error(`[ERROR] 上传分片失败: ${originalFileName}, 分片 ${chunkIndex + 1}/${totalChunks}:`, error);
+      const overallTime = Date.now() - overallStartTime;
+      console.error(`[PERF] [CHUNK-${chunkIndex + 1}/${totalChunks}] 上传分片失败，总耗时: ${overallTime}ms:`, error);
       const errorMessage = error.message || 'Unknown error';
       const errorDetails = {
         uploadId,
         chunkIndex,
         originalFileName,
         chunkSize: chunkFile.size,
+        totalTime: overallTime,
         errorStack: error.stack
       };
       throw new Error(`上传分片失败: ${errorMessage}`, { cause: errorDetails });

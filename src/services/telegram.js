@@ -194,37 +194,83 @@ export class TelegramService {
    * @returns {string} telegramFile的ID
    */
   async uploadChunk(chunkData, fileName) {
+    const chunkUploadStartTime = Date.now();
+    console.log(`[TELEGRAM] [PERF] 开始上传分片到 Telegram: ${fileName}, 大小: ${chunkData.length} 字节`);
+
     try {
+      // 步骤1: 创建 Blob 对象
+      const blobStartTime = Date.now();
+      console.log(`[TELEGRAM] [PERF] 步骤1: 开始创建 Blob 对象...`);
+
+      const blob = new Blob([chunkData]);
+      const blobTime = Date.now() - blobStartTime;
+      console.log(`[TELEGRAM] [PERF] 步骤1: Blob 创建完成，耗时: ${blobTime}ms`);
+
+      // 步骤2: 构建 FormData
+      const formDataStartTime = Date.now();
+      console.log(`[TELEGRAM] [PERF] 步骤2: 开始构建 FormData...`);
+
       const formData = new FormData();
       formData.append('chat_id', this.chatId);
-      formData.append('document', new Blob([chunkData]), fileName);
+      formData.append('document', blob, fileName);
 
-      console.log(`[TELEGRAM] 发送请求到 Telegram API: /sendDocument, 文件名: ${fileName}, 大小: ${chunkData.length} 字节`);
+      const formDataTime = Date.now() - formDataStartTime;
+      console.log(`[TELEGRAM] [PERF] 步骤2: FormData 构建完成，耗时: ${formDataTime}ms`);
+
+      // 步骤3: 发送网络请求
+      const fetchStartTime = Date.now();
+      console.log(`[TELEGRAM] [PERF] 步骤3: 开始发送 HTTP 请求到 Telegram API...`);
+      console.log(`[TELEGRAM] [PERF] 请求URL: ${this.apiBaseUrl}/sendDocument`);
+      console.log(`[TELEGRAM] [PERF] 请求方法: POST, Content-Type: multipart/form-data`);
+
       const response = await fetch(`${this.apiBaseUrl}/sendDocument`, {
         method: 'POST',
         body: formData
       });
 
+      const fetchTime = Date.now() - fetchStartTime;
+      console.log(`[TELEGRAM] [PERF] 步骤3: HTTP 请求完成，耗时: ${fetchTime}ms, 状态码: ${response.status}`);
+
       if (!response.ok) {
-        console.error(`[TELEGRAM] [ERROR] Telegram API 响应错误: ${response.status} ${response.statusText}`);
+        console.error(`[TELEGRAM] [PERF] [ERROR] Telegram API 响应错误: ${response.status} ${response.statusText}`);
         throw new Error(`Telegram API HTTP error: ${response.status} ${response.statusText}`);
       }
 
+      // 步骤4: 解析响应
+      const jsonStartTime = Date.now();
+      console.log(`[TELEGRAM] [PERF] 步骤4: 开始解析 JSON 响应...`);
+
       const result = await response.json();
 
+      const jsonTime = Date.now() - jsonStartTime;
+      console.log(`[TELEGRAM] [PERF] 步骤4: JSON 解析完成，耗时: ${jsonTime}ms`);
+
       if (!result.ok) {
-        console.error(`[TELEGRAM] [ERROR] Telegram API 返回错误: ${result.description}`);
+        console.error(`[TELEGRAM] [PERF] [ERROR] Telegram API 返回错误: ${result.description}`);
         throw new Error(`Telegram API error: ${result.description}`);
       }
 
+      // 总体性能统计
+      const totalTime = Date.now() - chunkUploadStartTime;
+      console.log(`[TELEGRAM] [PERF] === Telegram 上传性能统计 ===`);
+      console.log(`[TELEGRAM] [PERF] Blob创建: ${blobTime}ms (${(blobTime/totalTime*100).toFixed(1)}%)`);
+      console.log(`[TELEGRAM] [PERF] FormData构建: ${formDataTime}ms (${(formDataTime/totalTime*100).toFixed(1)}%)`);
+      console.log(`[TELEGRAM] [PERF] HTTP请求: ${fetchTime}ms (${(fetchTime/totalTime*100).toFixed(1)}%)`);
+      console.log(`[TELEGRAM] [PERF] JSON解析: ${jsonTime}ms (${(jsonTime/totalTime*100).toFixed(1)}%)`);
+      console.log(`[TELEGRAM] [PERF] 总耗时: ${totalTime}ms`);
+      console.log(`[TELEGRAM] [PERF] 网络传输速率: ${(chunkData.length / 1024 / 1024 / (fetchTime/1000)).toFixed(2)} MB/s`);
+      console.log(`[TELEGRAM] [PERF] 整体传输速率: ${(chunkData.length / 1024 / 1024 / (totalTime/1000)).toFixed(2)} MB/s`);
+
       return result.result.document.file_id;
     } catch (error) {
-      console.error(`[TELEGRAM] [ERROR] 上传分片到 Telegram 失败:`, error);
+      const totalTime = Date.now() - chunkUploadStartTime;
+      console.error(`[TELEGRAM] [PERF] [ERROR] 上传分片到 Telegram 失败，总耗时: ${totalTime}ms:`, error);
       // 提供更详细的错误信息
       const errorMessage = error.message || 'Unknown error';
       const errorDetails = {
         fileName: fileName,
         chunkSize: chunkData.length,
+        totalTime: totalTime,
         errorStack: error.stack
       };
       throw new Error(`上传分片到 Telegram 失败: ${errorMessage}`, { cause: errorDetails });
