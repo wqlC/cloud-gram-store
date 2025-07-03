@@ -1,14 +1,11 @@
-# CloudGram Store
+# CloudGramStore
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange.svg)](https://workers.cloudflare.com/)
 [![Telegram Bot API](https://img.shields.io/badge/Telegram-Bot%20API-blue.svg)](https://core.telegram.org/bots/api)
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/cloudflare/cloudflare-brand-assets/master/logo/cloudflare-logo-white-blue-background.png" alt="Cloudflare Logo" width="300"/>
-</p>
 
-CloudGram Store 是一个基于 Cloudflare Workers 和 Telegram Bot API 的云文件管理系统，通过创新的方式将 Telegram 作为文件存储后端，实现了无需传统云存储服务的个人云盘解决方案。系统支持 文件上传、下载、重命名、删除、目录管理等功能，适合个人使用。
+CloudGramStore 是一个基于 Cloudflare Workers 和 Telegram Bot API 的云文件管理系统，通过创新的方式将 Telegram 作为文件存储后端，实现了无需传统云存储服务的个人云盘解决方案。系统支持 文件上传、下载、重命名、删除、目录管理等功能，适合个人使用。
 
 [login-image](./images/login-image.png)
 
@@ -40,7 +37,8 @@ CloudGram Store 是一个基于 Cloudflare Workers 和 Telegram Bot API 的云�
 - [Node.js](https://nodejs.org/) (v16 或更高版本)
 - [npm](https://www.npmjs.com/) 或 [yarn](https://yarnpkg.com/)
 - [Cloudflare 账户](https://dash.cloudflare.com/sign-up)
-- [Telegram Bot](https://core.telegram.org/bots#how-do-i-create-a-bot) 和一个用于存储文件的 Telegram 群组/频道
+- [Telegram Bot](https://core.telegram.org/bots#how-do-i-create-a-bot) 和
+- 一个用于存储文件的 Telegram 群组/频道,把机器人加入到频道并将其作为管理员
 
 ### 安装
 
@@ -71,7 +69,6 @@ CloudGram Store 是一个基于 Cloudflare Workers 和 Telegram Bot API 的云�
    - 管理员用户名和密码
 		- 本项目只支持单用户，没有用户注册功能
    - JWT 密钥
-		- 前置条件：创建一个telegram 频道，创建一个telegram机器人，把机器人加入到频道并将其作为管理员
 
 4. **初始化数据库**
 
