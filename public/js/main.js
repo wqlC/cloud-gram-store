@@ -581,7 +581,7 @@ class CloudGramApp {
     }
 
     /**
-     * 创建文件夹元素（重命名和删除放在更多菜单中）
+     * 创建文件夹元素（直接显示重命名和删除按钮）
      */
     createFolderElement(folder) {
         const div = document.createElement('div');
@@ -595,28 +595,13 @@ class CloudGramApp {
                 </div>
             </div>
             <div class="file-actions">
-                <div class="dropdown">
-                  <button class="action-btn action-btn-secondary dropdown-toggle">⋯</button>
-                  <div class="dropdown-menu">
-                    <button class="dropdown-item" onclick="app.renameItem('folder', ${folder.id}, '${this.escapeHtml(folder.name)}')">重命名</button>
-                    <button class="dropdown-item dropdown-item-danger" onclick="app.deleteItem('folder', ${folder.id}, '${this.escapeHtml(folder.name)}')">删除</button>
-                  </div>
-                </div>
+                <button class="action-btn action-btn-secondary" onclick="app.renameItem('folder', ${folder.id}, '${this.escapeHtml(folder.name)}')">重命名</button>
+                <button class="action-btn action-btn-danger" onclick="app.deleteItem('folder', ${folder.id}, '${this.escapeHtml(folder.name)}')">删除</button>
             </div>
         `;
         // 添加双击进入文件夹
         div.addEventListener('dblclick', () => {
             this.loadDirectory(folder.id);
-        });
-        // 下拉菜单交互
-        const toggle = div.querySelector('.dropdown-toggle');
-        const menu = div.querySelector('.dropdown-menu');
-        toggle.addEventListener('click', (e) => {
-            e.stopPropagation();
-            menu.classList.toggle('show');
-        });
-        document.addEventListener('click', () => {
-            menu.classList.remove('show');
         });
         return div;
     }
