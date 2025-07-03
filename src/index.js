@@ -8,13 +8,22 @@ import { corsHeaders, jsonResponse, errorResponse } from './utils/response.js';
 
 export default {
   async fetch(request, env, ctx) {
+    const requestId = crypto.randomUUID();
+    const requestStart = Date.now();
+    const requestUrl = request.url;
+    const requestMethod = request.method;
+    
+    console.log(`[REQUEST] ${requestId} - ${requestMethod} ${requestUrl} - 开始处理`);
+    
     try {
       // 处理 CORS 预检请求
       if (request.method === 'OPTIONS') {
+        console.log(`[REQUEST] ${requestId} - OPTIONS 预检请求 - 返回CORS头`);
         return new Response(null, { headers: corsHeaders });
       }
 
       // 初始化服务
+      console.log(`[REQUEST] ${requestId} - 初始化服务`);
       const db = new DatabaseService(env.DB);
       const auth = new AuthService(env);
       const telegram = new TelegramService(env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID);
@@ -185,12 +194,32 @@ export default {
       });
 
       // 处理路由
+      console.log(`[REQUEST] ${requestId} - 开始路由处理`);
       const response = await router.handle(request);
-      return response || errorResponse('Not Found', 404);
+      
+      if (!response) {
+        console.log(`[REQUEST] ${requestId} - 未找到匹配路由 - 返回404`);
+        return errorResponse('Not Found', 404);
+      }
+      
+      const requestDuration = Date.now() - requestStart;
+      console.log(`[REQUEST] ${requestId} - ${requestMethod} ${requestUrl} - 处理完成 - 耗时: ${requestDuration}ms - 状态码: ${response.status}`);
+      return response;
 
     } catch (error) {
-      console.error('Error:', error);
-      return errorResponse('Internal Server Error', 500);
+      const requestDuration = Date.now() - requestStart;
+      console.error(`[REQUEST] [ERROR] ${requestId} - ${requestMethod} ${requestUrl} - 处理失败 - 耗时: ${requestDuration}ms`, error);
+      
+      // 提取错误详情
+      const errorMessage = error.message || 'Unknown error';
+      const errorDetails = error.cause ? error.cause : {
+        url: requestUrl,
+        method: requestMethod,
+        stack: error.stack
+      };
+      
+      // 返回详细的错误信息
+      return errorResponse(errorMessage, 500, errorDetails);
     }
   }
 };

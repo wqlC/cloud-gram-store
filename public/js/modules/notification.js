@@ -27,30 +27,47 @@ export class NotificationManager {
     }
 
     /**
-     * 显示错误通知，支持可选详情展开
-     */
-    error(title, message = '', duration = 8000, details = '') {
-        const id = this.show('error', title, message, duration);
-        if (details) {
-            const notification = this.notifications.get(id);
-            if (notification) {
-                const content = notification.element.querySelector('.notification-content');
-                const detailsDiv = document.createElement('div');
-                detailsDiv.className = 'notification-details';
-                detailsDiv.textContent = details;
-                content.appendChild(detailsDiv);
-                const btn = document.createElement('button');
-                btn.className = 'show-details';
-                btn.textContent = '查看详情';
-                btn.onclick = () => {
-                    detailsDiv.classList.toggle('show');
-                    btn.textContent = detailsDiv.classList.contains('show') ? '收起详情' : '查看详情';
-                };
-                content.appendChild(btn);
-            }
+   * 显示错误通知，支持可选详情展开
+   * @param {string} title - 通知标题
+   * @param {string} message - 通知消息
+   * @param {number} duration - 显示时长（毫秒）
+   * @param {string|Object} details - 错误详情，可以是字符串或对象
+   * @returns {number} 通知ID
+   */
+  error(title, message = '', duration = 8000, details = '') {
+    const id = this.show('error', title, message, duration);
+    if (details) {
+      const notification = this.notifications.get(id);
+      if (notification) {
+        const content = notification.element.querySelector('.notification-content');
+        const detailsDiv = document.createElement('div');
+        detailsDiv.className = 'notification-details';
+        
+        // 处理不同类型的详情
+        if (typeof details === 'object') {
+          try {
+            // 格式化JSON对象
+            detailsDiv.innerHTML = '<pre>' + this.formatErrorDetails(details) + '</pre>';
+          } catch (e) {
+            detailsDiv.textContent = JSON.stringify(details, null, 2);
+          }
+        } else {
+          detailsDiv.textContent = details;
         }
-        return id;
+        
+        content.appendChild(detailsDiv);
+        const btn = document.createElement('button');
+        btn.className = 'show-details';
+        btn.textContent = '查看详情';
+        btn.onclick = () => {
+          detailsDiv.classList.toggle('show');
+          btn.textContent = detailsDiv.classList.contains('show') ? '收起详情' : '查看详情';
+        };
+        content.appendChild(btn);
+      }
     }
+    return id;
+  }
 
     /**
      * 显示警告通知
@@ -182,13 +199,65 @@ export class NotificationManager {
     }
 
     /**
-     * 转义 HTML
-     */
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+   * 转义 HTML
+   */
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  /**
+   * 格式化错误详情
+   * @param {Object} details - 错误详情对象
+   * @returns {string} 格式化后的HTML
+   */
+  formatErrorDetails(details) {
+    if (!details) return '';
+    
+    let html = '';
+    
+    // 处理常见的错误属性
+    const commonProps = ['fileName', 'fileId', 'fileSize', 'folderId', 'url', 'method', 'timestamp'];
+    for (const prop of commonProps) {
+      if (details[prop] !== undefined) {
+        html += `<strong>${this.formatPropName(prop)}:</strong> ${this.escapeHtml(String(details[prop]))}<br>`;
+      }
     }
+    
+    // 处理错误堆栈
+    if (details.errorStack) {
+      html += `<strong>错误堆栈:</strong><br><code>${this.escapeHtml(details.errorStack)}</code>`;
+    } else if (details.stack) {
+      html += `<strong>错误堆栈:</strong><br><code>${this.escapeHtml(details.stack)}</code>`;
+    }
+    
+    // 处理其他属性
+    for (const prop in details) {
+      if (!commonProps.includes(prop) && prop !== 'errorStack' && prop !== 'stack') {
+        const value = typeof details[prop] === 'object' 
+          ? JSON.stringify(details[prop], null, 2)
+          : String(details[prop]);
+        html += `<strong>${this.formatPropName(prop)}:</strong> ${this.escapeHtml(value)}<br>`;
+      }
+    }
+    
+    return html;
+  }
+  
+  /**
+   * 格式化属性名称
+   * @param {string} prop - 属性名
+   * @returns {string} 格式化后的属性名
+   */
+  formatPropName(prop) {
+    // 将驼峰命名转换为空格分隔的单词，并首字母大写
+    return prop
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .replace(/Id$/, 'ID')
+      .replace(/Url$/, 'URL');
+  }
 
     /**
      * 显示加载通知

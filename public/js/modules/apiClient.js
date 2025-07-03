@@ -63,7 +63,21 @@ export class ApiClient {
             // 检查响应状态
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+                const error = new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+                
+                // 添加详细错误信息
+                if (errorData.details) {
+                    error.details = errorData.details;
+                }
+                
+                // 添加响应状态信息
+                error.status = response.status;
+                error.statusText = response.statusText;
+                error.url = response.url;
+                error.method = config.method;
+                error.timestamp = new Date().toISOString();
+                
+                throw error;
             }
 
             // 对于下载请求，返回响应对象本身
@@ -158,6 +172,10 @@ export class ApiClient {
 
     /**
      * 上传文件
+     * @param {File} file - 要上传的文件
+     * @param {string|null} folderId - 目标文件夹ID
+     * @param {Function|null} onProgress - 进度回调函数
+     * @returns {Promise<Object>} - 上传结果
      */
     async uploadFile(file, folderId = null, onProgress = null) {
         const formData = new FormData();
@@ -184,24 +202,59 @@ export class ApiClient {
                             const result = JSON.parse(xhr.responseText);
                             resolve(result);
                         } catch (error) {
-                            reject(new Error('Invalid JSON response'));
+                            const err = new Error('无效的JSON响应');
+                            err.fileName = file.name;
+                            err.fileSize = file.size;
+                            err.folderId = folderId;
+                            reject(err);
                         }
                     } else {
                         try {
                             const errorData = JSON.parse(xhr.responseText);
-                            reject(new Error(errorData.message || `Upload failed: ${xhr.statusText}`));
-                        } catch {
-                            reject(new Error(`Upload failed: ${xhr.statusText}`));
+                            const error = new Error(errorData.message || `上传失败: ${xhr.statusText}`);
+                            
+                            // 添加详细错误信息
+                            if (errorData.details) {
+                                error.details = errorData.details;
+                            }
+                            
+                            // 添加文件信息
+                            error.fileName = file.name;
+                            error.fileSize = file.size;
+                            error.folderId = folderId;
+                            error.status = xhr.status;
+                            error.url = `${this.baseUrl}/api/files`;
+                            error.method = 'POST';
+                            error.timestamp = new Date().toISOString();
+                            
+                            reject(error);
+                        } catch (e) {
+                            const error = new Error(`上传失败: ${xhr.statusText}`);
+                            error.fileName = file.name;
+                            error.fileSize = file.size;
+                            error.folderId = folderId;
+                            error.status = xhr.status;
+                            reject(error);
                         }
                     }
                 });
 
                 xhr.addEventListener('error', () => {
-                    reject(new Error('Upload failed'));
+                    const error = new Error('网络错误，上传失败');
+                    error.fileName = file.name;
+                    error.fileSize = file.size;
+                    error.folderId = folderId;
+                    error.timestamp = new Date().toISOString();
+                    reject(error);
                 });
 
                 xhr.addEventListener('abort', () => {
-                    reject(new Error('Upload aborted'));
+                    const error = new Error('上传已取消');
+                    error.fileName = file.name;
+                    error.fileSize = file.size;
+                    error.folderId = folderId;
+                    error.timestamp = new Date().toISOString();
+                    reject(error);
                 });
 
                 xhr.open('POST', `${this.baseUrl}/api/files`);
@@ -220,13 +273,26 @@ export class ApiClient {
 
     /**
      * 下载文件
+     * @param {string} fileId - 文件ID
+     * @param {Function|null} onProgress - 进度回调函数
+     * @returns {Promise<Blob>} - 文件内容
      */
-    async downloadFile(fileId) {
-        const response = await this.request(`/api/files/${fileId}/download`, {
-            responseType: 'blob'
-        });
+    async downloadFile(fileId, onProgress = null) {
+        try {
+            const response = await this.request(`/api/files/${fileId}/download`, {
+                responseType: 'blob',
+                onProgress
+            });
 
-        return response;
+            return response;
+        } catch (error) {
+            // 添加文件ID信息到错误对象
+            error.fileId = fileId;
+            error.url = `${this.baseUrl}/api/files/${fileId}/download`;
+            error.method = 'GET';
+            error.timestamp = new Date().toISOString();
+            throw error;
+        }
     }
 
     // ========== 认证相关 API ==========

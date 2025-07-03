@@ -17,6 +17,7 @@ export class FileService {
    * @returns {Object} 上传结果
    */
   async uploadFile(file, folderId) {
+    console.log(`[INFO] 开始上传文件: ${file.name}, 大小: ${file.size} 字节, 文件夹ID: ${folderId || 'root'}`);
     try {
       // 获取文件数据
       const arrayBuffer = await file.arrayBuffer();
@@ -24,11 +25,15 @@ export class FileService {
 
       // 确定 MIME 类型
       const mimeType = file.type || 'application/octet-stream';
+      console.log(`[INFO] 文件 ${file.name} MIME类型: ${mimeType}`);
 
       // 上传到 Telegram
+      console.log(`[INFO] 开始上传文件 ${file.name} 到 Telegram`);
       const telegramChunks = await this.telegram.uploadFile(fileData, file.name);
+      console.log(`[INFO] 文件 ${file.name} 上传到 Telegram 完成，共 ${telegramChunks.length} 个分片`);
 
       // 创建文件记录
+      console.log(`[INFO] 为文件 ${file.name} 创建数据库记录`);
       const fileRecord = await this.db.createFile(
         file.name,
         folderId,
@@ -39,6 +44,7 @@ export class FileService {
       // 创建分片记录
       const chunkRecords = [];
       for (const chunk of telegramChunks) {
+        console.log(`[INFO] 为文件 ${file.name} 创建分片记录 ${chunk.index + 1}/${telegramChunks.length}`);
         const chunkRecord = await this.db.createFileChunk(
           fileRecord.id,
           chunk.index,
@@ -48,13 +54,22 @@ export class FileService {
         chunkRecords.push(chunkRecord);
       }
 
+      console.log(`[INFO] 文件 ${file.name} 上传完成，文件ID: ${fileRecord.id}`);
       return {
         ...fileRecord,
         chunks: chunkRecords
       };
     } catch (error) {
-      console.error('Error uploading file:', error);
-      throw new Error('Failed to upload file');
+      console.error(`[ERROR] 上传文件 ${file.name} 失败:`, error);
+      // 提供更详细的错误信息
+      const errorMessage = error.message || 'Unknown error';
+      const errorDetails = {
+        fileName: file.name,
+        fileSize: file.size,
+        folderId: folderId,
+        errorStack: error.stack
+      };
+      throw new Error(`上传文件失败: ${errorMessage}`, { cause: errorDetails });
     }
   }
 
@@ -64,21 +79,30 @@ export class FileService {
    * @returns {Object|null} 文件数据和元信息
    */
   async downloadFile(fileId) {
+    console.log(`[INFO] 开始下载文件，文件ID: ${fileId}`);
     try {
       // 获取文件信息
+      console.log(`[INFO] 获取文件信息，文件ID: ${fileId}`);
       const fileInfo = await this.db.getFileById(fileId);
       if (!fileInfo) {
+        console.error(`[ERROR] 文件不存在，文件ID: ${fileId}`);
         return null;
       }
+      console.log(`[INFO] 文件信息获取成功: ${fileInfo.name}, 大小: ${fileInfo.size} 字节`);
 
       // 获取文件分片
+      console.log(`[INFO] 获取文件分片，文件ID: ${fileId}`);
       const chunks = await this.db.getFileChunks(fileId);
       if (!chunks || chunks.length === 0) {
-        throw new Error('No file chunks found');
+        console.error(`[ERROR] 未找到文件分片，文件ID: ${fileId}`);
+        throw new Error('未找到文件分片');
       }
+      console.log(`[INFO] 文件分片获取成功，共 ${chunks.length} 个分片`);
 
       // 从 Telegram 下载文件
+      console.log(`[INFO] 开始从 Telegram 下载文件 ${fileInfo.name}`);
       const fileData = await this.telegram.downloadFile(chunks);
+      console.log(`[INFO] 文件 ${fileInfo.name} 从 Telegram 下载完成，大小: ${fileData.length} 字节`);
 
       return {
         data: fileData,
@@ -87,8 +111,14 @@ export class FileService {
         size: fileInfo.size
       };
     } catch (error) {
-      console.error('Error downloading file:', error);
-      throw new Error('Failed to download file');
+      console.error(`[ERROR] 下载文件失败，文件ID: ${fileId}:`, error);
+      // 提供更详细的错误信息
+      const errorMessage = error.message || 'Unknown error';
+      const errorDetails = {
+        fileId: fileId,
+        errorStack: error.stack
+      };
+      throw new Error(`下载文件失败: ${errorMessage}`, { cause: errorDetails });
     }
   }
 

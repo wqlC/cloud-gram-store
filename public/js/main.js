@@ -208,6 +208,7 @@ class CloudGramApp {
 
     /**
      * 上传文件
+     * @param {File[]} files - 要上传的文件列表
      */
     async uploadFiles(files) {
         this.uiManager.showLoading('正在上传...');
@@ -219,7 +220,32 @@ class CloudGramApp {
 
                 this.notification.success('上传成功', `文件 ${file.name} 上传完成`);
             } catch (error) {
-                this.notification.error('上传失败', `文件 ${file.name} 上传失败：${error.message}`);
+                console.error('文件上传错误:', error);
+                
+                // 构建详细错误信息对象
+                const errorDetails = {
+                    fileName: file.name,
+                    fileSize: this.formatFileSize(file.size),
+                    folderId: this.currentFolderId,
+                    timestamp: new Date().toLocaleString()
+                };
+                
+                // 合并错误对象中的详细信息
+                if (error.details) {
+                    Object.assign(errorDetails, error.details);
+                }
+                
+                // 添加错误状态和URL信息
+                if (error.status) errorDetails.status = error.status;
+                if (error.url) errorDetails.url = error.url;
+                if (error.method) errorDetails.method = error.method;
+                
+                this.notification.error(
+                    '上传失败', 
+                    `文件 ${file.name} 上传失败：${error.message}`,
+                    8000,  // 显示时间更长
+                    errorDetails
+                );
             }
         }
         this.uiManager.hideLoading();
@@ -252,7 +278,21 @@ class CloudGramApp {
             await this.refreshCurrentDirectory();
             this.notification.success('创建成功', `文件夹 ${folderName} 创建完成`);
         } catch (error) {
-            this.notification.error('创建失败', error.message);
+            console.error('创建文件夹错误:', error);
+            
+            // 构建详细错误信息对象
+            const errorDetails = {
+                folderName: folderName,
+                parentFolderId: this.currentFolderId,
+                timestamp: new Date().toLocaleString()
+            };
+            
+            // 合并错误对象中的详细信息
+            if (error.details) {
+                Object.assign(errorDetails, error.details);
+            }
+            
+            this.notification.error('创建失败', error.message, 8000, errorDetails);
         } finally {
             this.uiManager.hideLoading();
         }
@@ -284,7 +324,7 @@ class CloudGramApp {
         }
         this.uiManager.showLoading('正在重命名...');
         try {
-            const { type, id } = this.currentRenameItem;
+            const { type, id, currentName } = this.currentRenameItem;
 
             if (type === 'folder') {
                 await this.fileManager.updateFolderName(id, newName);
@@ -296,7 +336,24 @@ class CloudGramApp {
             await this.refreshCurrentDirectory();
             this.notification.success('重命名成功', `${type === 'folder' ? '文件夹' : '文件'}已重命名为 ${newName}`);
         } catch (error) {
-            this.notification.error('重命名失败', error.message);
+            console.error('重命名错误:', error);
+            
+            // 构建详细错误信息对象
+            const { type, id, currentName } = this.currentRenameItem;
+            const errorDetails = {
+                itemType: type,
+                itemId: id,
+                oldName: currentName,
+                newName: newName,
+                timestamp: new Date().toLocaleString()
+            };
+            
+            // 合并错误对象中的详细信息
+            if (error.details) {
+                Object.assign(errorDetails, error.details);
+            }
+            
+            this.notification.error('重命名失败', error.message, 8000, errorDetails);
         } finally {
             this.uiManager.hideLoading();
         }
@@ -333,7 +390,23 @@ class CloudGramApp {
             await this.refreshCurrentDirectory();
             this.notification.success('删除成功', `${type === 'folder' ? '文件夹' : '文件'} ${name} 已删除`);
         } catch (error) {
-            this.notification.error('删除失败', error.message);
+            console.error('删除错误:', error);
+            
+            // 构建详细错误信息对象
+            const { type, id, name } = this.currentDeleteItem;
+            const errorDetails = {
+                itemType: type,
+                itemId: id,
+                itemName: name,
+                timestamp: new Date().toLocaleString()
+            };
+            
+            // 合并错误对象中的详细信息
+            if (error.details) {
+                Object.assign(errorDetails, error.details);
+            }
+            
+            this.notification.error('删除失败', error.message, 8000, errorDetails);
         } finally {
             this.uiManager.hideLoading();
         }
@@ -341,15 +414,45 @@ class CloudGramApp {
 
     /**
      * 下载文件
+     * @param {string} fileId - 文件ID
+     * @param {string} fileName - 文件名
      */
     async downloadFile(fileId, fileName) {
         this.uiManager.showLoading('正在下载...');
         try {
             this.notification.info('开始下载', `正在准备下载 ${fileName}...`);
-            await this.fileManager.downloadFile(fileId, fileName);
+            await this.fileManager.downloadFile(fileId, fileName, (progress) => {
+                // 如果UI管理器支持下载进度更新，则调用它
+                this.uiManager.updateDownloadProgress && 
+                this.uiManager.updateDownloadProgress(fileName, progress);
+            });
             this.notification.success('下载完成', `文件 ${fileName} 下载完成`);
         } catch (error) {
-            this.notification.error('下载失败', `文件 ${fileName} 下载失败：${error.message}`);
+            console.error('文件下载错误:', error);
+            
+            // 构建详细错误信息对象
+            const errorDetails = {
+                fileName: fileName,
+                fileId: fileId,
+                timestamp: new Date().toLocaleString()
+            };
+            
+            // 合并错误对象中的详细信息
+            if (error.details) {
+                Object.assign(errorDetails, error.details);
+            }
+            
+            // 添加错误状态和URL信息
+            if (error.status) errorDetails.status = error.status;
+            if (error.url) errorDetails.url = error.url;
+            if (error.method) errorDetails.method = error.method;
+            
+            this.notification.error(
+                '下载失败', 
+                `文件 ${fileName} 下载失败：${error.message}`,
+                8000,  // 显示时间更长
+                errorDetails
+            );
         } finally {
             this.uiManager.hideLoading();
         }
@@ -357,6 +460,7 @@ class CloudGramApp {
 
     /**
      * 加载目录内容
+     * @param {string|null} folderId - 文件夹ID，null表示根目录
      */
     async loadDirectory(folderId) {
         console.log('loadDirectory called with folderId:', folderId); // 调试用
@@ -373,7 +477,20 @@ class CloudGramApp {
             this.renderFileList(data.folders, data.files);
 
         } catch (error) {
-            this.notification.error('加载失败', error.message);
+            console.error('加载目录错误:', error);
+            
+            // 构建详细错误信息对象
+            const errorDetails = {
+                folderId: folderId,
+                timestamp: new Date().toLocaleString()
+            };
+            
+            // 合并错误对象中的详细信息
+            if (error.details) {
+                Object.assign(errorDetails, error.details);
+            }
+            
+            this.notification.error('加载失败', error.message, 8000, errorDetails);
         } finally {
             this.uiManager.hideLoading();
         }
@@ -577,14 +694,14 @@ class CloudGramApp {
 
     /**
      * 格式化文件大小
+     * @param {number} bytes - 文件大小（字节）
+     * @returns {string} - 格式化后的文件大小
      */
     formatFileSize(bytes) {
-        if (bytes === 0) return '0 B';
-
+        if (bytes === 0) return '0 Bytes';
         const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
-
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 

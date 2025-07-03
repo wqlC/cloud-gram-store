@@ -28,11 +28,22 @@ export function jsonResponse(data, status = 200) {
  * 创建错误响应
  * @param {string} message - 错误消息
  * @param {number} status - HTTP 状态码
+ * @param {Object} details - 错误详情（可选）
  * @returns {Response} Response 对象
  */
-export function errorResponse(message, status = 400) {
-  return jsonResponse({
+export function errorResponse(message, status = 400, details = null) {
+  const errorData = {
     error: true,
-    message
-  }, status);
+    message,
+    timestamp: new Date().toISOString()
+  };
+  
+  if (details) {
+    errorData.details = details;
+  }
+  
+  // 记录错误日志
+  console.error(`[ERROR] ${status} - ${message}`, details ? JSON.stringify(details) : '');
+  
+  return jsonResponse(errorData, status);
 }
