@@ -313,7 +313,7 @@ export class UIManager {
      * 设置页面标题
      */
     setPageTitle(title) {
-        document.title = title ? `${title} - CloudGram Store` : 'CloudGram Store';
+        document.title = title ? `${title} - CloudGramStore` : 'CloudGramStore';
     }
 
     /**
