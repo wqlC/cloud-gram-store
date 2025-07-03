@@ -42,6 +42,10 @@ export class NotificationManager {
         const content = notification.element.querySelector('.notification-content');
         const detailsDiv = document.createElement('div');
         detailsDiv.className = 'notification-details';
+        // 阻止详情区域内的点击事件冒泡
+        detailsDiv.addEventListener('click', (e) => {
+          e.stopPropagation();
+        });
         
         // 处理不同类型的详情
         if (typeof details === 'object') {
@@ -59,7 +63,9 @@ export class NotificationManager {
         const btn = document.createElement('button');
         btn.className = 'show-details';
         btn.textContent = '查看详情';
-        btn.onclick = () => {
+        btn.onclick = (e) => {
+          // 阻止事件冒泡，防止触发通知的点击关闭事件
+          e.stopPropagation();
           detailsDiv.classList.toggle('show');
           btn.textContent = detailsDiv.classList.contains('show') ? '收起详情' : '查看详情';
         };
@@ -138,9 +144,12 @@ export class NotificationManager {
             this.hide(id);
         });
 
-        // 点击通知本身也可以关闭（除了按钮）
+        // 点击通知本身也可以关闭（除了按钮和查看详情按钮）
         element.addEventListener('click', (e) => {
-            if (e.target !== closeBtn) {
+            // 检查点击的元素是否是关闭按钮或查看详情按钮或详情区域
+            if (e.target !== closeBtn && 
+                !e.target.classList.contains('show-details') && 
+                !e.target.closest('.notification-details')) {
                 this.hide(id);
             }
         });

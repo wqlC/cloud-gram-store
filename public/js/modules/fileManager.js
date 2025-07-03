@@ -19,19 +19,19 @@ export class FileManager {
             return result;
         } catch (error) {
             console.error('获取目录内容失败:', error);
-            
+
             // 创建新的错误对象，保留原始错误的详细信息
             const newError = new Error('获取目录内容失败：' + error.message);
-            
+
             // 复制原始错误的属性
             if (error.status) newError.status = error.status;
             if (error.url) newError.url = error.url;
             if (error.method) newError.method = error.method;
             if (error.details) newError.details = error.details;
-            
+
             // 添加文件夹ID
             newError.folderId = folderId;
-            
+
             throw newError;
         }
     }
@@ -50,21 +50,21 @@ export class FileManager {
             return result;
         } catch (error) {
             console.error('创建文件夹失败:', error);
-            
+
             // 创建新的错误对象，保留原始错误的详细信息
             const newError = new Error('创建文件夹失败：' + error.message);
-            
+
             // 复制原始错误的属性
             if (error.status) newError.status = error.status;
             if (error.url) newError.url = error.url;
             if (error.method) newError.method = error.method;
             if (error.details) newError.details = error.details;
             if (error.timestamp) newError.timestamp = error.timestamp;
-            
+
             // 添加文件夹信息
             newError.folderName = name;
             newError.parentId = parentId;
-            
+
             throw newError;
         }
     }
@@ -83,21 +83,21 @@ export class FileManager {
             return result;
         } catch (error) {
             console.error('重命名文件夹失败:', error);
-            
+
             // 创建新的错误对象，保留原始错误的详细信息
             const newError = new Error('重命名文件夹失败：' + error.message);
-            
+
             // 复制原始错误的属性
             if (error.status) newError.status = error.status;
             if (error.url) newError.url = error.url;
             if (error.method) newError.method = error.method;
             if (error.details) newError.details = error.details;
             if (error.timestamp) newError.timestamp = error.timestamp;
-            
+
             // 添加文件夹信息
             newError.folderId = folderId;
             newError.newName = newName;
-            
+
             throw newError;
         }
     }
@@ -115,26 +115,26 @@ export class FileManager {
             return result;
         } catch (error) {
             console.error('删除文件夹失败:', error);
-            
+
             // 创建新的错误对象，保留原始错误的详细信息
             const newError = new Error('删除文件夹失败：' + error.message);
-            
+
             // 复制原始错误的属性
             if (error.status) newError.status = error.status;
             if (error.url) newError.url = error.url;
             if (error.method) newError.method = error.method;
             if (error.details) newError.details = error.details;
             if (error.timestamp) newError.timestamp = error.timestamp;
-            
+
             // 添加文件夹ID
             newError.folderId = folderId;
-            
+
             throw newError;
         }
     }
 
     /**
-     * 上传文件
+     * 上传文件（支持前端分片）
      * @param {File} file - 要上传的文件
      * @param {string|null} folderId - 目标文件夹ID
      * @param {Function|null} onProgress - 进度回调函数
@@ -145,13 +145,22 @@ export class FileManager {
             // 验证文件
             this.validateFile(file);
 
-            // 使用 API 客户端上传文件
-            const result = await this.apiClient.uploadFile(file, folderId, onProgress);
+            // 设置分片大小阈值，超过此大小使用分片上传
+            const CHUNK_THRESHOLD = 50 * 1024 * 1024; // 50MB
 
-            return result;
+            if (file.size > CHUNK_THRESHOLD) {
+                console.log(`文件大小 ${this.formatFileSize(file.size)} 超过阈值${CHUNK_THRESHOLD}，使用分片上传`);
+                // 使用分片上传
+                return await this.uploadFileWithChunks(file, folderId, onProgress);
+            } else {
+                console.log(`文件大小 ${this.formatFileSize(file.size)} 未超过阈值，使用普通上传`);
+                // 使用普通上传
+                const result = await this.apiClient.uploadFile(file, folderId, onProgress);
+                return result;
+            }
         } catch (error) {
             console.error('上传文件失败:', error);
-            
+
             // 保留原始错误的详细信息
             if (error.message.includes('上传文件失败')) {
                 // 已经是格式化过的错误，直接抛出
@@ -159,7 +168,7 @@ export class FileManager {
             } else {
                 // 创建新的错误对象，保留原始错误的详细信息
                 const newError = new Error('上传文件失败：' + error.message);
-                
+
                 // 复制原始错误的属性
                 if (error.fileName) newError.fileName = error.fileName;
                 if (error.fileSize) newError.fileSize = error.fileSize;
@@ -169,10 +178,107 @@ export class FileManager {
                 if (error.method) newError.method = error.method;
                 if (error.details) newError.details = error.details;
                 if (error.timestamp) newError.timestamp = error.timestamp;
-                
+
                 throw newError;
             }
         }
+    }
+
+    /**
+     * 分片上传文件
+     * @param {File} file - 要上传的文件
+     * @param {string|null} folderId - 目标文件夹ID
+     * @param {Function|null} onProgress - 进度回调函数
+     * @returns {Promise<Object>} - 上传结果
+     */
+    async uploadFileWithChunks(file, folderId = null, onProgress = null) {
+        const CHUNK_SIZE = 20 * 1024 * 1024; // 20MB per chunk
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        const uploadId = this.generateUploadId();
+
+        console.log(`开始分片上传: ${file.name}, 大小: ${this.formatFileSize(file.size)}, 分片数: ${totalChunks}`);
+
+        try {
+            const uploadedChunks = [];
+            let uploadedBytes = 0;
+
+            // 逐个上传分片
+            for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                const start = chunkIndex * CHUNK_SIZE;
+                const end = Math.min(start + CHUNK_SIZE, file.size);
+                const chunkBlob = file.slice(start, end);
+
+                console.log(`上传分片 ${chunkIndex + 1}/${totalChunks}: ${this.formatFileSize(chunkBlob.size)}`);
+
+                // 创建分片文件对象
+                const chunkFile = new File([chunkBlob], `${file.name}.chunk.${chunkIndex}`, {
+                    type: file.type
+                });
+
+                // 上传分片
+                const chunkResult = await this.apiClient.uploadFileChunk({
+                    file: chunkFile,
+                    uploadId: uploadId,
+                    chunkIndex: chunkIndex,
+                    totalChunks: totalChunks,
+                    originalFileName: file.name,
+                    originalFileSize: file.size,
+                    folderId: folderId
+                });
+
+                uploadedChunks.push(chunkResult);
+                uploadedBytes += chunkBlob.size;
+
+                // 更新进度
+                if (onProgress) {
+                    const progress = (uploadedBytes / file.size) * 100;
+                    onProgress(progress);
+                }
+
+                console.log(`分片 ${chunkIndex + 1}/${totalChunks} 上传完成`);
+            }
+
+            console.log(`所有分片上传完成，开始合并文件`);
+
+            // 通知后端合并分片
+            const mergeResult = await this.apiClient.mergeFileChunks({
+                uploadId: uploadId,
+                fileName: file.name,
+                fileSize: file.size,
+                mimeType: file.type,
+                folderId: folderId,
+                chunks: uploadedChunks
+            });
+
+            console.log(`文件合并完成: ${file.name}`);
+            return mergeResult;
+
+        } catch (error) {
+            console.error(`分片上传失败: ${file.name}`, error);
+
+            // 尝试清理已上传的分片
+            try {
+                await this.apiClient.cleanupFailedUpload(uploadId);
+            } catch (cleanupError) {
+                console.warn('清理失败的上传分片时出错:', cleanupError);
+            }
+
+            // 重新抛出原始错误
+            const newError = new Error(`分片上传失败: ${error.message}`);
+            newError.fileName = file.name;
+            newError.fileSize = file.size;
+            newError.uploadId = uploadId;
+            newError.timestamp = new Date().toISOString();
+            throw newError;
+        }
+    }
+
+    /**
+     * 生成唯一的上传ID
+     * @returns {string} - 上传ID
+     */
+    generateUploadId() {
+        return 'upload_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
 
     /**
@@ -188,20 +294,20 @@ export class FileManager {
             return result;
         } catch (error) {
             console.error('获取文件信息失败:', error);
-            
+
             // 创建新的错误对象，保留原始错误的详细信息
             const newError = new Error('获取文件信息失败：' + error.message);
-            
+
             // 复制原始错误的属性
             if (error.status) newError.status = error.status;
             if (error.url) newError.url = error.url;
             if (error.method) newError.method = error.method;
             if (error.details) newError.details = error.details;
             if (error.timestamp) newError.timestamp = error.timestamp;
-            
+
             // 添加文件ID
             newError.fileId = fileId;
-            
+
             throw newError;
         }
     }
@@ -220,21 +326,21 @@ export class FileManager {
             return result;
         } catch (error) {
             console.error('重命名文件失败:', error);
-            
+
             // 创建新的错误对象，保留原始错误的详细信息
             const newError = new Error('重命名文件失败：' + error.message);
-            
+
             // 复制原始错误的属性
             if (error.status) newError.status = error.status;
             if (error.url) newError.url = error.url;
             if (error.method) newError.method = error.method;
             if (error.details) newError.details = error.details;
             if (error.timestamp) newError.timestamp = error.timestamp;
-            
+
             // 添加文件信息
             newError.fileId = fileId;
             newError.newName = newName;
-            
+
             throw newError;
         }
     }
@@ -252,20 +358,20 @@ export class FileManager {
             return result;
         } catch (error) {
             console.error('删除文件失败:', error);
-            
+
             // 创建新的错误对象，保留原始错误的详细信息
             const newError = new Error('删除文件失败：' + error.message);
-            
+
             // 复制原始错误的属性
             if (error.status) newError.status = error.status;
             if (error.url) newError.url = error.url;
             if (error.method) newError.method = error.method;
             if (error.details) newError.details = error.details;
             if (error.timestamp) newError.timestamp = error.timestamp;
-            
+
             // 添加文件ID
             newError.fileId = fileId;
-            
+
             throw newError;
         }
     }
@@ -281,14 +387,14 @@ export class FileManager {
         try {
             console.log(`开始下载文件: ${fileName} (ID: ${fileId})`);
             const startTime = new Date().getTime();
-            
+
             // 调用API客户端下载文件
             const response = await this.apiClient.downloadFile(fileId, onProgress);
-            
+
             // 创建下载链接
             const blob = await response.blob();
             console.log(`文件下载完成: ${fileName}, 大小: ${this.formatFileSize(blob.size)}`);
-            
+
             const url = window.URL.createObjectURL(blob);
 
             // 触发下载
@@ -302,13 +408,13 @@ export class FileManager {
             // 清理
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
-            
+
             const endTime = new Date().getTime();
             console.log(`文件下载处理完成: ${fileName}, 耗时: ${(endTime - startTime) / 1000}秒`);
 
         } catch (error) {
             console.error('下载文件失败:', error);
-            
+
             // 保留原始错误的详细信息
             if (error.message.includes('下载文件失败')) {
                 // 已经是格式化过的错误，直接抛出
@@ -316,7 +422,7 @@ export class FileManager {
             } else {
                 // 创建新的错误对象，保留原始错误的详细信息
                 const newError = new Error('下载文件失败：' + error.message);
-                
+
                 // 复制原始错误的属性
                 if (error.fileId) newError.fileId = error.fileId;
                 if (error.status) newError.status = error.status;
@@ -324,10 +430,10 @@ export class FileManager {
                 if (error.method) newError.method = error.method;
                 if (error.details) newError.details = error.details;
                 if (error.timestamp) newError.timestamp = error.timestamp;
-                
+
                 // 添加文件名
                 newError.fileName = fileName;
-                
+
                 throw newError;
             }
         }
@@ -483,7 +589,7 @@ export class FileManager {
                     error: error.message,
                     success: false
                 };
-                
+
                 // 复制原始错误的属性
                 if (error.fileName) errorDetails.fileName = error.fileName;
                 if (error.fileSize) errorDetails.fileSize = error.fileSize;
@@ -493,7 +599,7 @@ export class FileManager {
                 if (error.method) errorDetails.method = error.method;
                 if (error.details) errorDetails.details = error.details;
                 if (error.timestamp) errorDetails.timestamp = error.timestamp;
-                
+
                 errors.push(errorDetails);
                 results.push(errorDetails);
             }
@@ -501,7 +607,7 @@ export class FileManager {
 
         const endTime = new Date().getTime();
         console.log(`批量上传完成: 成功${results.filter(r => r.success).length}个, 失败${errors.length}个, 总耗时: ${(endTime - startTime) / 1000}秒`);
-        
+
         return {
             results,
             errors,

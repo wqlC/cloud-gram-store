@@ -12,9 +12,9 @@ export default {
     const requestStart = Date.now();
     const requestUrl = request.url;
     const requestMethod = request.method;
-    
+
     console.log(`[REQUEST] ${requestId} - ${requestMethod} ${requestUrl} - 开始处理`);
-    
+
     try {
       // 处理 CORS 预检请求
       if (request.method === 'OPTIONS') {
@@ -137,6 +137,71 @@ export default {
         return jsonResponse(result);
       });
 
+      // 分片上传接口
+      router.post('/api/files/chunk', async (request) => {
+        const token = auth.extractToken(request);
+        if (!auth.verifyToken(token)) {
+          return errorResponse('Unauthorized', 401);
+        }
+
+        const formData = await request.formData();
+        const chunkFile = formData.get('chunk');
+        const uploadId = formData.get('upload_id');
+        const chunkIndex = parseInt(formData.get('chunk_index'));
+        const totalChunks = parseInt(formData.get('total_chunks'));
+        const originalFileName = formData.get('original_file_name');
+        const originalFileSize = parseInt(formData.get('original_file_size'));
+        const folderId = formData.get('folder_id') || null;
+
+        if (!chunkFile) {
+          return errorResponse('No chunk file provided', 400);
+        }
+
+        if (!uploadId || isNaN(chunkIndex) || isNaN(totalChunks) || !originalFileName || isNaN(originalFileSize)) {
+          return errorResponse('Missing required chunk parameters', 400);
+        }
+
+        const result = await fileService.uploadFileChunk(
+          chunkFile, uploadId, chunkIndex, totalChunks, originalFileName, originalFileSize, folderId
+        );
+        return jsonResponse(result);
+      });
+
+      // 分片合并接口
+      router.post('/api/files/merge', async (request) => {
+        const token = auth.extractToken(request);
+        if (!auth.verifyToken(token)) {
+          return errorResponse('Unauthorized', 401);
+        }
+
+        const { upload_id, file_name, file_size, mime_type, folder_id, chunks } = await request.json();
+
+        if (!upload_id || !file_name || !file_size || !chunks || !Array.isArray(chunks)) {
+          return errorResponse('Missing required merge parameters', 400);
+        }
+
+        const result = await fileService.mergeFileChunks(
+          upload_id, file_name, file_size, mime_type, folder_id, chunks
+        );
+        return jsonResponse(result);
+      });
+
+      // 清理失败上传接口
+      router.delete('/api/files/upload/:uploadId', async (request, params) => {
+        const token = auth.extractToken(request);
+        if (!auth.verifyToken(token)) {
+          return errorResponse('Unauthorized', 401);
+        }
+
+        const { uploadId } = params;
+        if (!uploadId) {
+          return errorResponse('Upload ID is required', 400);
+        }
+
+        const result = await fileService.cleanupFailedUpload(uploadId);
+        return jsonResponse(result);
+      });
+
       router.get('/api/files/:id', async (request, params) => {
         const token = auth.extractToken(request);
         if (!auth.verifyToken(token)) {
@@ -196,12 +261,12 @@ export default {
       // 处理路由
       console.log(`[REQUEST] ${requestId} - 开始路由处理`);
       const response = await router.handle(request);
-      
+
       if (!response) {
         console.log(`[REQUEST] ${requestId} - 未找到匹配路由 - 返回404`);
         return errorResponse('Not Found', 404);
       }
-      
+
       const requestDuration = Date.now() - requestStart;
       console.log(`[REQUEST] ${requestId} - ${requestMethod} ${requestUrl} - 处理完成 - 耗时: ${requestDuration}ms - 状态码: ${response.status}`);
       return response;
@@ -209,7 +274,7 @@ export default {
     } catch (error) {
       const requestDuration = Date.now() - requestStart;
       console.error(`[REQUEST] [ERROR] ${requestId} - ${requestMethod} ${requestUrl} - 处理失败 - 耗时: ${requestDuration}ms`, error);
-      
+
       // 提取错误详情
       const errorMessage = error.message || 'Unknown error';
       const errorDetails = error.cause ? error.cause : {
@@ -217,7 +282,7 @@ export default {
         method: requestMethod,
         stack: error.stack
       };
-      
+
       // 返回详细的错误信息
       return errorResponse(errorMessage, 500, errorDetails);
     }

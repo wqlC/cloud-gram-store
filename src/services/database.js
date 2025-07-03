@@ -338,4 +338,78 @@ export class DatabaseService {
       throw new Error('Failed to get folder path');
     }
   }
+
+  // ================== 临时分片操作 ==================
+
+  /**
+   * 创建临时分片记录
+   * @param {string} uploadId - 上传ID
+   * @param {number} chunkIndex - 分片索引
+   * @param {string} telegramFileId - Telegram文件ID
+   * @param {number} size - 分片大小
+   * @param {string} originalFileName - 原始文件名
+   * @param {number} originalFileSize - 原始文件大小
+   * @param {number|null} folderId - 文件夹ID
+   * @returns {Object} 创建的临时分片信息
+   */
+  async createTempChunk(uploadId, chunkIndex, telegramFileId, size, originalFileName, originalFileSize, folderId) {
+    try {
+      const insertQuery = `
+        INSERT INTO temp_chunks (upload_id, chunk_index, telegram_file_id, size, original_file_name, original_file_size, folder_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *
+      `;
+      const result = await this.db.prepare(insertQuery).bind(
+        uploadId, chunkIndex, telegramFileId, size, originalFileName, originalFileSize, folderId
+      ).first();
+
+      return result;
+    } catch (error) {
+      console.error('Error creating temp chunk:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取指定上传ID的所有临时分片
+   * @param {string} uploadId - 上传ID
+   * @returns {Array} 临时分片列表，按索引排序
+   */
+  async getTempChunks(uploadId) {
+    try {
+      const query = 'SELECT * FROM temp_chunks WHERE upload_id = ? ORDER BY chunk_index ASC';
+      const result = await this.db.prepare(query).bind(uploadId).all();
+      return result.results || [];
+    } catch (error) {
+      console.error('Error getting temp chunks:', error);
+      throw new Error('Failed to get temp chunks');
+    }
+  }
+
+  /**
+   * 删除指定上传ID的所有临时分片
+   * @param {string} uploadId - 上传ID
+   */
+  async deleteTempChunks(uploadId) {
+    try {
+      await this.db.prepare('DELETE FROM temp_chunks WHERE upload_id = ?').bind(uploadId).run();
+    } catch (error) {
+      console.error('Error deleting temp chunks:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 清理过期的临时分片（超过24小时）
+   */
+  async cleanupExpiredTempChunks() {
+    try {
+      const query = 'DELETE FROM temp_chunks WHERE created_at < datetime("now", "-1 day")';
+      const result = await this.db.prepare(query).run();
+      console.log(`Cleaned up ${result.changes} expired temp chunks`);
+      return result.changes;
+    } catch (error) {
+      console.error('Error cleaning up expired temp chunks:', error);
+      throw error;
+    }
+  }
 }
