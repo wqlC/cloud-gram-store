@@ -36,7 +36,7 @@ export class TelegramService {
         const telegramFileId = await this.uploadChunk(chunk, chunkFileName);
         const duration = Date.now() - startTime;
         console.log(`[TELEGRAM] 分片 ${i+1}/${chunks.length} 上传完成，用时: ${duration}ms, 文件ID: ${telegramFileId.substring(0, 10)}...`);
-        
+
         messageIds.push({
           index: i,
           telegramFileId,
@@ -93,7 +93,9 @@ export class TelegramService {
       const errorMessage = error.message || 'Unknown error';
       const errorDetails = {
         chunksCount: chunks.length,
-        errorStack: error.stack
+        chunkIds: chunks.map(chunk => chunk.telegram_file_id).join(','),
+        errorStack: error.stack,
+        timestamp: new Date().toISOString()
       };
       throw new Error(`从 Telegram 下载文件失败: ${errorMessage}`, { cause: errorDetails });
     }
@@ -200,14 +202,14 @@ export class TelegramService {
 
   /**
    * 从 Telegram 下载单个分片
-   * @param {string} messageId - 消息ID
+   * @param {string} telegram_file_id - Telegram文件ID
    * @returns {Uint8Array} 分片数据
    */
-  async downloadChunk(messageId) {
+  async downloadChunk(telegram_file_id) {
     try {
       // 首先获取文件信息
-      console.log(`[TELEGRAM] 获取文件信息，文件ID: ${messageId.substring(0, 10)}...`);
-      const fileInfo = await this.getFileInfo(messageId);
+      console.log(`[TELEGRAM] 获取文件信息，文件ID: ${telegram_file_id.substring(0, 10)}...`);
+      const fileInfo = await this.getFileInfo(telegram_file_id);
       console.log(`[TELEGRAM] 文件信息获取成功，文件路径: ${fileInfo.file_path}`);
 
       // 然后下载文件
@@ -228,7 +230,7 @@ export class TelegramService {
       // 提供更详细的错误信息
       const errorMessage = error.message || 'Unknown error';
       const errorDetails = {
-        messageId: messageId,
+        telegram_file_id: telegram_file_id,
         errorStack: error.stack
       };
       throw new Error(`从 Telegram 下载分片失败: ${errorMessage}`, { cause: errorDetails });
@@ -237,55 +239,40 @@ export class TelegramService {
 
   /**
    * 获取文件信息
-   * @param {string} messageId - 消息ID
+   * @param {string} telegramFileId - Telegram文件ID
    * @returns {Object} 文件信息
    */
-  async getFileInfo(messageId) {
+  async getFileInfo(telegramFileId) {
     try {
-      // 首先获取消息信息
-      const messageResponse = await fetch(`${this.apiBaseUrl}/getMessage`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          chat_id: this.chatId,
-          message_id: parseInt(messageId)
-        })
-      });
-
-      const messageResult = await messageResponse.json();
-
-      if (!messageResult.ok) {
-        throw new Error(`Failed to get message: ${messageResult.description}`);
-      }
-
-      const document = messageResult.result.document;
-      if (!document) {
-        throw new Error('No document found in message');
-      }
-
-      // 获取文件详细信息
+      console.log(`[TELEGRAM] 直接通过文件ID获取文件信息: ${telegramFileId.substring(0, 10)}...`);
+      // 直接通过文件ID获取文件详细信息
       const fileResponse = await fetch(`${this.apiBaseUrl}/getFile`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          file_id: document.file_id
+          file_id: telegramFileId
         })
       });
 
       const fileResult = await fileResponse.json();
 
       if (!fileResult.ok) {
-        throw new Error(`Failed to get file info: ${fileResult.description}`);
+        console.error(`[TELEGRAM] [ERROR] 获取文件信息失败: ${fileResult.description}`);
+        throw new Error(`获取文件信息失败: ${fileResult.description}`);
       }
 
       return fileResult.result;
     } catch (error) {
-      console.error('Error getting file info from Telegram:', error);
-      throw error;
+      console.error(`[TELEGRAM] [ERROR] 获取文件信息失败:`, error);
+      // 提供更详细的错误信息
+      const errorMessage = error.message || 'Unknown error';
+      const errorDetails = {
+        telegram_file_id: telegramFileId,
+        errorStack: error.stack
+      };
+      throw new Error(`获取文件信息失败: ${errorMessage}`, { cause: errorDetails });
     }
   }
 
