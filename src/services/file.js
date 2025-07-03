@@ -348,4 +348,191 @@ export class FileService {
 
     return 'file-unknown';
   }
+
+  /**
+   * 上传单个分片
+   * @param {File} chunkFile - 分片文件
+   * @param {string} uploadId - 上传ID
+   * @param {number} chunkIndex - 分片索引
+   * @param {number} totalChunks - 总分片数
+   * @param {string} originalFileName - 原始文件名
+   * @param {number} originalFileSize - 原始文件大小
+   * @param {number|null} folderId - 文件夹ID
+   * @returns {Object} 分片上传结果
+   */
+  async uploadFileChunk(chunkFile, uploadId, chunkIndex, totalChunks, originalFileName, originalFileSize, folderId) {
+    console.log(`[INFO] 开始上传分片: ${originalFileName}, 分片 ${chunkIndex + 1}/${totalChunks}, 大小: ${chunkFile.size} 字节`);
+    try {
+      // 获取分片数据
+      const arrayBuffer = await chunkFile.arrayBuffer();
+      const chunkData = new Uint8Array(arrayBuffer);
+
+      // 生成分片文件名
+      const chunkFileName = totalChunks > 1
+        ? `${originalFileName}.part${chunkIndex.toString().padStart(3, '0')}`
+        : originalFileName;
+
+      // 直接上传分片到 Telegram（无需再分片）
+      console.log(`[INFO] 上传分片 ${chunkIndex + 1}/${totalChunks} 到 Telegram: ${chunkFileName}`);
+      const telegramFileId = await this.telegram.uploadChunk(chunkData, chunkFileName);
+      console.log(`[INFO] 分片 ${chunkIndex + 1}/${totalChunks} 上传到 Telegram 完成，文件ID: ${telegramFileId.substring(0, 10)}...`);
+
+      // 创建临时分片记录（用于后续合并）
+      const chunkRecord = await this.db.createTempChunk(
+        uploadId,
+        chunkIndex,
+        telegramFileId,
+        chunkData.length,
+        originalFileName,
+        originalFileSize,
+        folderId
+      );
+
+      console.log(`[INFO] 分片 ${chunkIndex + 1}/${totalChunks} 上传完成`);
+      return {
+        uploadId,
+        chunkIndex,
+        telegramFileId,
+        size: chunkData.length,
+        chunkId: chunkRecord.id
+      };
+    } catch (error) {
+      console.error(`[ERROR] 上传分片失败: ${originalFileName}, 分片 ${chunkIndex + 1}/${totalChunks}:`, error);
+      const errorMessage = error.message || 'Unknown error';
+      const errorDetails = {
+        uploadId,
+        chunkIndex,
+        originalFileName,
+        chunkSize: chunkFile.size,
+        errorStack: error.stack
+      };
+      throw new Error(`上传分片失败: ${errorMessage}`, { cause: errorDetails });
+    }
+  }
+
+  /**
+   * 合并文件分片
+   * @param {string} uploadId - 上传ID
+   * @param {string} fileName - 文件名
+   * @param {number} fileSize - 文件大小
+   * @param {string} mimeType - MIME类型
+   * @param {number|null} folderId - 文件夹ID
+   * @param {Array} chunks - 分片信息数组
+   * @returns {Object} 合并结果
+   */
+  async mergeFileChunks(uploadId, fileName, fileSize, mimeType, folderId, chunks) {
+    console.log(`[INFO] 开始合并文件分片: ${fileName}, 上传ID: ${uploadId}, 分片数: ${chunks.length}`);
+    try {
+      // 验证所有分片都已上传
+      const tempChunks = await this.db.getTempChunks(uploadId);
+      if (!tempChunks || tempChunks.length === 0) {
+        throw new Error('未找到待合并的分片');
+      }
+
+      // 验证分片完整性
+      const expectedChunks = chunks.length;
+      if (tempChunks.length !== expectedChunks) {
+        throw new Error(`分片数量不匹配，期望: ${expectedChunks}, 实际: ${tempChunks.length}`);
+      }
+
+      console.log(`[INFO] 分片验证通过，开始创建文件记录: ${fileName}`);
+
+      // 创建文件记录
+      const fileRecord = await this.db.createFile(
+        fileName,
+        folderId,
+        fileSize,
+        mimeType
+      );
+
+      // 将临时分片转换为正式分片记录
+      const chunkRecords = [];
+      for (const tempChunk of tempChunks) {
+        console.log(`[INFO] 创建正式分片记录: ${fileName}, 分片 ${tempChunk.chunk_index + 1}/${tempChunks.length}`);
+        const chunkRecord = await this.db.createFileChunk(
+          fileRecord.id,
+          tempChunk.chunk_index,
+          tempChunk.telegram_file_id,
+          tempChunk.size
+        );
+        chunkRecords.push(chunkRecord);
+      }
+
+      // 清理临时分片记录
+      console.log(`[INFO] 清理临时分片记录: ${uploadId}`);
+      await this.db.deleteTempChunks(uploadId);
+
+      console.log(`[INFO] 文件合并完成: ${fileName}, 文件ID: ${fileRecord.id}`);
+      return {
+        ...fileRecord,
+        chunks: chunkRecords
+      };
+    } catch (error) {
+      console.error(`[ERROR] 合并文件分片失败: ${fileName}, 上传ID: ${uploadId}:`, error);
+      // 如果合并失败，尝试清理
+      try {
+        await this.cleanupFailedUpload(uploadId);
+      } catch (cleanupError) {
+        console.warn(`[WARN] 清理失败的上传时出错: ${uploadId}`, cleanupError);
+      }
+
+      const errorMessage = error.message || 'Unknown error';
+      const errorDetails = {
+        uploadId,
+        fileName,
+        fileSize,
+        chunksCount: chunks.length,
+        errorStack: error.stack
+      };
+      throw new Error(`合并文件分片失败: ${errorMessage}`, { cause: errorDetails });
+    }
+  }
+
+  /**
+   * 清理失败的上传
+   * @param {string} uploadId - 上传ID
+   * @returns {Object} 清理结果
+   */
+  async cleanupFailedUpload(uploadId) {
+    console.log(`[INFO] 开始清理失败的上传: ${uploadId}`);
+    try {
+      // 获取临时分片记录
+      const tempChunks = await this.db.getTempChunks(uploadId);
+      if (!tempChunks || tempChunks.length === 0) {
+        console.log(`[INFO] 未找到需要清理的临时分片: ${uploadId}`);
+        return { success: true, message: '没有需要清理的分片' };
+      }
+
+      console.log(`[INFO] 找到 ${tempChunks.length} 个临时分片需要清理: ${uploadId}`);
+
+      // 从 Telegram 删除分片
+      for (const chunk of tempChunks) {
+        try {
+          console.log(`[INFO] 从 Telegram 删除分片: ${chunk.telegram_file_id.substring(0, 10)}...`);
+          await this.telegram.deleteTelegramFileById(chunk.telegram_file_id);
+        } catch (deleteError) {
+          console.warn(`[WARN] 删除 Telegram 分片失败: ${chunk.telegram_file_id}`, deleteError);
+          // 不阻止清理流程，继续处理其他分片
+        }
+      }
+
+      // 从数据库删除临时分片记录
+      console.log(`[INFO] 从数据库删除临时分片记录: ${uploadId}`);
+      await this.db.deleteTempChunks(uploadId);
+
+      console.log(`[INFO] 清理完成: ${uploadId}`);
+      return {
+        success: true,
+        message: `成功清理 ${tempChunks.length} 个分片`,
+        clearedChunks: tempChunks.length
+      };
+    } catch (error) {
+      console.error(`[ERROR] 清理失败的上传时出错: ${uploadId}:`, error);
+      return {
+        success: false,
+        error: error.message,
+        uploadId
+      };
+    }
+  }
 }

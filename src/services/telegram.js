@@ -9,7 +9,9 @@ export class TelegramService {
     this.botToken = botToken;
     this.chatId = chatId;
     this.apiBaseUrl = `https://api.telegram.org/bot${botToken}`;
-    this.chunkSize = 19 * 1024 * 1024; // 20MB，Telegram 文件上传限制
+    // 降低分片大小以适应 Cloudflare Workers 的内存限制
+    // 原来是 19MB，现在改为 5MB 以确保内存安全
+    this.chunkSize = 5 * 1024 * 1024; // 5MB，在内存限制下更安全
   }
 
   /**
@@ -20,31 +22,55 @@ export class TelegramService {
    */
   async uploadFile(fileData, fileName) {
     console.log(`[TELEGRAM] 开始上传文件到 Telegram: ${fileName}, 大小: ${fileData.length} 字节`);
+
+    // 添加文件大小检查，避免超出内存限制
+    const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB 限制
+    if (fileData.length > MAX_FILE_SIZE) {
+      throw new Error(`文件大小超出限制: ${fileData.length} 字节，最大允许: ${MAX_FILE_SIZE} 字节`);
+    }
+
     try {
-      const chunks = this.splitFileIntoChunks(fileData);
-      console.log(`[TELEGRAM] 文件 ${fileName} 已分割为 ${chunks.length} 个分片`);
+      // 计算分片数量和大小，但不创建所有分片
+      const totalChunks = Math.ceil(fileData.length / this.chunkSize);
+      console.log(`[TELEGRAM] 文件 ${fileName} 将分割为 ${totalChunks} 个分片`);
+
       const messageIds = [];
 
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        const chunkFileName = chunks.length > 1
+      // 流式处理：一次只处理一个分片
+      for (let i = 0; i < totalChunks; i++) {
+        const startOffset = i * this.chunkSize;
+        const endOffset = Math.min(startOffset + this.chunkSize, fileData.length);
+
+        // 创建单个分片，避免同时保存所有分片
+        const chunk = fileData.slice(startOffset, endOffset);
+
+        const chunkFileName = totalChunks > 1
           ? `${fileName}.part${i.toString().padStart(3, '0')}`
           : fileName;
 
-        console.log(`[TELEGRAM] 上传分片 ${i+1}/${chunks.length}: ${chunkFileName}, 大小: ${chunk.length} 字节`);
+        console.log(`[TELEGRAM] 上传分片 ${i+1}/${totalChunks}: ${chunkFileName}, 大小: ${chunk.length} 字节`);
         const startTime = Date.now();
-        const telegramFileId = await this.uploadChunk(chunk, chunkFileName);
-        const duration = Date.now() - startTime;
-        console.log(`[TELEGRAM] 分片 ${i+1}/${chunks.length} 上传完成，用时: ${duration}ms, 文件ID: ${telegramFileId.substring(0, 10)}...`);
 
-        messageIds.push({
-          index: i,
-          telegramFileId,
-          size: chunk.length
-        });
+        try {
+          const telegramFileId = await this.uploadChunk(chunk, chunkFileName);
+          const duration = Date.now() - startTime;
+          console.log(`[TELEGRAM] 分片 ${i+1}/${totalChunks} 上传完成，用时: ${duration}ms, 文件ID: ${telegramFileId.substring(0, 10)}...`);
+
+          messageIds.push({
+            index: i,
+            telegramFileId,
+            size: chunk.length
+          });
+        } catch (chunkError) {
+          console.error(`[TELEGRAM] [ERROR] 上传分片 ${i+1}/${totalChunks} 失败:`, chunkError);
+          throw new Error(`上传分片 ${i+1}/${totalChunks} 失败: ${chunkError.message}`);
+        }
+
+        // 手动释放分片内存引用（虽然 JS 有垃圾回收，但显式释放有助于减少内存压力）
+        // chunk 变量会在循环结束时自动超出作用域
       }
 
-      console.log(`[TELEGRAM] 文件 ${fileName} 上传到 Telegram 完成，共 ${chunks.length} 个分片`);
+      console.log(`[TELEGRAM] 文件 ${fileName} 上传到 Telegram 完成，共 ${totalChunks} 个分片`);
       return messageIds;
     } catch (error) {
       console.error(`[TELEGRAM] [ERROR] 上传文件 ${fileName} 到 Telegram 失败:`, error);
@@ -117,11 +143,16 @@ export class TelegramService {
   }
 
   /**
-   * 将文件分割成分片
+   * 将文件分割成分片（已弃用，使用流式处理替代）
+   * @deprecated 使用流式处理替代，避免内存溢出
    * @param {Uint8Array} fileData - 文件数据
    * @returns {Array} 分片数组
    */
   splitFileIntoChunks(fileData) {
+    // 这个方法已经在 uploadFile 中用流式处理替代
+    // 保留此方法以确保向后兼容，但不建议直接使用
+    console.warn('[TELEGRAM] [DEPRECATED] splitFileIntoChunks 方法已弃用，建议使用流式处理');
+
     const chunks = [];
     let offset = 0;
 

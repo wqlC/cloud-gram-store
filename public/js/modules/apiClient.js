@@ -64,19 +64,19 @@ export class ApiClient {
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 const error = new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-                
+
                 // 添加详细错误信息
                 if (errorData.details) {
                     error.details = errorData.details;
                 }
-                
+
                 // 添加响应状态信息
                 error.status = response.status;
                 error.statusText = response.statusText;
                 error.url = response.url;
                 error.method = config.method;
                 error.timestamp = new Date().toISOString();
-                
+
                 throw error;
             }
 
@@ -212,12 +212,12 @@ export class ApiClient {
                         try {
                             const errorData = JSON.parse(xhr.responseText);
                             const error = new Error(errorData.message || `上传失败: ${xhr.statusText}`);
-                            
+
                             // 添加详细错误信息
                             if (errorData.details) {
                                 error.details = errorData.details;
                             }
-                            
+
                             // 添加文件信息
                             error.fileName = file.name;
                             error.fileSize = file.size;
@@ -226,7 +226,7 @@ export class ApiClient {
                             error.url = `${this.baseUrl}/api/files`;
                             error.method = 'POST';
                             error.timestamp = new Date().toISOString();
-                            
+
                             reject(error);
                         } catch (e) {
                             const error = new Error(`上传失败: ${xhr.statusText}`);
@@ -292,6 +292,91 @@ export class ApiClient {
             error.method = 'GET';
             error.timestamp = new Date().toISOString();
             throw error;
+        }
+    }
+
+    /**
+     * 上传文件分片
+     * @param {Object} chunkData - 分片数据
+     * @param {File} chunkData.file - 分片文件
+     * @param {string} chunkData.uploadId - 上传ID
+     * @param {number} chunkData.chunkIndex - 分片索引
+     * @param {number} chunkData.totalChunks - 总分片数
+     * @param {string} chunkData.originalFileName - 原始文件名
+     * @param {number} chunkData.originalFileSize - 原始文件大小
+     * @param {string|null} chunkData.folderId - 目标文件夹ID
+     * @returns {Promise<Object>} - 分片上传结果
+     */
+    async uploadFileChunk(chunkData) {
+        const formData = new FormData();
+        formData.append('chunk', chunkData.file);
+        formData.append('upload_id', chunkData.uploadId);
+        formData.append('chunk_index', chunkData.chunkIndex.toString());
+        formData.append('total_chunks', chunkData.totalChunks.toString());
+        formData.append('original_file_name', chunkData.originalFileName);
+        formData.append('original_file_size', chunkData.originalFileSize.toString());
+
+        if (chunkData.folderId) {
+            formData.append('folder_id', chunkData.folderId);
+        }
+
+        try {
+            const result = await this.post('/api/files/chunk', formData);
+            return result;
+        } catch (error) {
+            // 添加分片信息到错误对象
+            error.uploadId = chunkData.uploadId;
+            error.chunkIndex = chunkData.chunkIndex;
+            error.originalFileName = chunkData.originalFileName;
+            throw error;
+        }
+    }
+
+    /**
+     * 合并文件分片
+     * @param {Object} mergeData - 合并数据
+     * @param {string} mergeData.uploadId - 上传ID
+     * @param {string} mergeData.fileName - 文件名
+     * @param {number} mergeData.fileSize - 文件大小
+     * @param {string} mergeData.mimeType - MIME类型
+     * @param {string|null} mergeData.folderId - 目标文件夹ID
+     * @param {Array} mergeData.chunks - 分片信息数组
+     * @returns {Promise<Object>} - 合并结果
+     */
+    async mergeFileChunks(mergeData) {
+        try {
+            const result = await this.post('/api/files/merge', {
+                upload_id: mergeData.uploadId,
+                file_name: mergeData.fileName,
+                file_size: mergeData.fileSize,
+                mime_type: mergeData.mimeType,
+                folder_id: mergeData.folderId,
+                chunks: mergeData.chunks
+            });
+            return result;
+        } catch (error) {
+            // 添加合并信息到错误对象
+            error.uploadId = mergeData.uploadId;
+            error.fileName = mergeData.fileName;
+            throw error;
+        }
+    }
+
+    /**
+     * 清理失败的上传
+     * @param {string} uploadId - 上传ID
+     * @returns {Promise<Object>} - 清理结果
+     */
+    async cleanupFailedUpload(uploadId) {
+        try {
+            const result = await this.delete(`/api/files/upload/${uploadId}`);
+            return result;
+        } catch (error) {
+            // 添加上传ID到错误对象
+            error.uploadId = uploadId;
+            console.warn('清理失败的上传时出错:', error);
+            // 清理操作失败不应阻止主流程，所以这里不重新抛出错误
+            return { success: false, error: error.message };
         }
     }
 
