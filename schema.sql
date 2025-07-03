@@ -1,4 +1,4 @@
--- CloudGram Store 数据库结构
+-- CloudGramStore 数据库结构
 -- 用于 Cloudflare D1 数据库
 
 -- 文件夹表

@@ -1,4 +1,4 @@
-// CloudGram Store 主 JavaScript 文件
+// CloudGramStore 主 JavaScript 文件
 // 模块化前端应用入口
 
 import { AuthManager } from './modules/auth.js';
