@@ -9,7 +9,7 @@ export class TelegramService {
     this.botToken = botToken;
     this.chatId = chatId;
     this.apiBaseUrl = `https://api.telegram.org/bot${botToken}`;
-    this.chunkSize = 20 * 1024 * 1024; // 20MB，Telegram 文件上传限制
+    this.chunkSize = 19 * 1024 * 1024; // 20MB，Telegram 文件上传限制
   }
 
   /**
