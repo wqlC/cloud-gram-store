@@ -38,9 +38,14 @@ class CloudGramApp {
             } else {
                 this.showLoginPage();
             }
+
+            // 隐藏页面加载指示器
+            this.hidePageLoader();
         } catch (error) {
             console.error('应用初始化失败:', error);
             this.notification.error('应用初始化失败', error.message);
+            // 即使出错也要隐藏加载指示器
+            this.hidePageLoader();
         }
     }
 
@@ -221,7 +226,7 @@ class CloudGramApp {
                 this.notification.success('上传成功', `文件 ${file.name} 上传完成`);
             } catch (error) {
                 console.error('文件上传错误:', error);
-                
+
                 // 构建详细错误信息对象
                 const errorDetails = {
                     fileName: file.name,
@@ -229,19 +234,19 @@ class CloudGramApp {
                     folderId: this.currentFolderId,
                     timestamp: new Date().toLocaleString()
                 };
-                
+
                 // 合并错误对象中的详细信息
                 if (error.details) {
                     Object.assign(errorDetails, error.details);
                 }
-                
+
                 // 添加错误状态和URL信息
                 if (error.status) errorDetails.status = error.status;
                 if (error.url) errorDetails.url = error.url;
                 if (error.method) errorDetails.method = error.method;
-                
+
                 this.notification.error(
-                    '上传失败', 
+                    '上传失败',
                     `文件 ${file.name} 上传失败：${error.message}`,
                     8000,  // 显示时间更长
                     errorDetails
@@ -279,19 +284,19 @@ class CloudGramApp {
             this.notification.success('创建成功', `文件夹 ${folderName} 创建完成`);
         } catch (error) {
             console.error('创建文件夹错误:', error);
-            
+
             // 构建详细错误信息对象
             const errorDetails = {
                 folderName: folderName,
                 parentFolderId: this.currentFolderId,
                 timestamp: new Date().toLocaleString()
             };
-            
+
             // 合并错误对象中的详细信息
             if (error.details) {
                 Object.assign(errorDetails, error.details);
             }
-            
+
             this.notification.error('创建失败', error.message, 8000, errorDetails);
         } finally {
             this.uiManager.hideLoading();
@@ -337,7 +342,7 @@ class CloudGramApp {
             this.notification.success('重命名成功', `${type === 'folder' ? '文件夹' : '文件'}已重命名为 ${newName}`);
         } catch (error) {
             console.error('重命名错误:', error);
-            
+
             // 构建详细错误信息对象
             const { type, id, currentName } = this.currentRenameItem;
             const errorDetails = {
@@ -347,12 +352,12 @@ class CloudGramApp {
                 newName: newName,
                 timestamp: new Date().toLocaleString()
             };
-            
+
             // 合并错误对象中的详细信息
             if (error.details) {
                 Object.assign(errorDetails, error.details);
             }
-            
+
             this.notification.error('重命名失败', error.message, 8000, errorDetails);
         } finally {
             this.uiManager.hideLoading();
@@ -391,7 +396,7 @@ class CloudGramApp {
             this.notification.success('删除成功', `${type === 'folder' ? '文件夹' : '文件'} ${name} 已删除`);
         } catch (error) {
             console.error('删除错误:', error);
-            
+
             // 构建详细错误信息对象
             const { type, id, name } = this.currentDeleteItem;
             const errorDetails = {
@@ -400,12 +405,12 @@ class CloudGramApp {
                 itemName: name,
                 timestamp: new Date().toLocaleString()
             };
-            
+
             // 合并错误对象中的详细信息
             if (error.details) {
                 Object.assign(errorDetails, error.details);
             }
-            
+
             this.notification.error('删除失败', error.message, 8000, errorDetails);
         } finally {
             this.uiManager.hideLoading();
@@ -423,32 +428,32 @@ class CloudGramApp {
             this.notification.info('开始下载', `正在准备下载 ${fileName}...`);
             await this.fileManager.downloadFile(fileId, fileName, (progress) => {
                 // 如果UI管理器支持下载进度更新，则调用它
-                this.uiManager.updateDownloadProgress && 
+                this.uiManager.updateDownloadProgress &&
                 this.uiManager.updateDownloadProgress(fileName, progress);
             });
             this.notification.success('下载完成', `文件 ${fileName} 下载完成`);
         } catch (error) {
             console.error('文件下载错误:', error);
-            
+
             // 构建详细错误信息对象
             const errorDetails = {
                 fileName: fileName,
                 fileId: fileId,
                 timestamp: new Date().toLocaleString()
             };
-            
+
             // 合并错误对象中的详细信息
             if (error.details) {
                 Object.assign(errorDetails, error.details);
             }
-            
+
             // 添加错误状态和URL信息
             if (error.status) errorDetails.status = error.status;
             if (error.url) errorDetails.url = error.url;
             if (error.method) errorDetails.method = error.method;
-            
+
             this.notification.error(
-                '下载失败', 
+                '下载失败',
                 `文件 ${fileName} 下载失败：${error.message}`,
                 8000,  // 显示时间更长
                 errorDetails
@@ -478,18 +483,18 @@ class CloudGramApp {
 
         } catch (error) {
             console.error('加载目录错误:', error);
-            
+
             // 构建详细错误信息对象
             const errorDetails = {
                 folderId: folderId,
                 timestamp: new Date().toLocaleString()
             };
-            
+
             // 合并错误对象中的详细信息
             if (error.details) {
                 Object.assign(errorDetails, error.details);
             }
-            
+
             this.notification.error('加载失败', error.message, 8000, errorDetails);
         } finally {
             this.uiManager.hideLoading();
@@ -707,6 +712,16 @@ class CloudGramApp {
         if (mimeType.startsWith('text/')) return '📝';
 
         return '📄';
+    }
+
+    /**
+     * 隐藏页面加载指示器
+     */
+    hidePageLoader() {
+        const pageLoader = document.getElementById('pageLoader');
+        if (pageLoader) {
+            pageLoader.style.display = 'none';
+        }
     }
 }
 
