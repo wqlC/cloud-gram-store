@@ -8,7 +8,11 @@
   <img src="https://raw.githubusercontent.com/cloudflare/cloudflare-brand-assets/master/logo/cloudflare-logo-white-blue-background.png" alt="Cloudflare Logo" width="300"/>
 </p>
 
-CloudGram Store 是一个基于 Cloudflare Workers 和 Telegram Bot API 的云文件管理系统，通过创新的方式将 Telegram 作为文件存储后端，实现了无需传统云存储服务的个人云盘解决方案。系统支持多用户登录、文件上传、下载、重命名、删除、目录管理等功能，适合个人和小型团队使用。
+CloudGram Store 是一个基于 Cloudflare Workers 和 Telegram Bot API 的云文件管理系统，通过创新的方式将 Telegram 作为文件存储后端，实现了无需传统云存储服务的个人云盘解决方案。系统支持 文件上传、下载、重命名、删除、目录管理等功能，适合个人使用。
+
+[login-image](./images/login-image.png)
+
+[manage-image](./images/image.png)
 
 ## ✨ 功能特性
 
@@ -55,17 +59,19 @@ CloudGram Store 是一个基于 Cloudflare Workers 和 Telegram Bot API 的云�
 
 3. **配置环境**
 
-   复制示例配置文件并进行编辑：
+   3.1. 复制示例配置文件并进行编辑：
 
    ```sh
    cp wrangler.jsonc.example wrangler.jsonc
    ```
 
-   编辑 `wrangler.jsonc` 文件，填入以下信息：
+   3.2. 编辑 `wrangler.jsonc` 文件，填入以下信息：
    - Telegram Bot Token
    - Telegram Chat ID
    - 管理员用户名和密码
+		- 本项目只支持单用户，没有用户注册功能
    - JWT 密钥
+		- 前置条件：创建一个telegram 频道，创建一个telegram机器人，把机器人加入到频道并将其作为管理员
 
 4. **初始化数据库**
 
@@ -76,7 +82,11 @@ CloudGram Store 是一个基于 Cloudflare Workers 和 Telegram Bot API 的云�
    将生成的数据库 ID 添加到 `wrangler.jsonc` 文件中。
 
    ```sh
+	# 本地执行建表语句
    npx wrangler d1 execute cloud-gram-store-db --file=schema.sql
+
+	# 远端执行建表语句
+   npx wrangler d1 execute cloud-gram-store-db --file=schema.sql --remote
    ```
 
 ### 本地开发
