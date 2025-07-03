@@ -7,9 +7,9 @@
 
 CloudGramStore 是一个基于 Cloudflare Workers 和 Telegram Bot API 的云文件管理系统，通过创新的方式将 Telegram 作为文件存储后端，实现了无需传统云存储服务的个人云盘解决方案。系统支持 文件上传、下载、重命名、删除、目录管理等功能，适合个人使用。
 
-[login-image](./images/login-image.png)
+![login-image](./images/login-image.png)
 
-[manage-image](./images/image.png)
+![manage-image](./images/image.png)
 
 ## ✨ 功能特性
 
